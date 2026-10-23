@@ -1,0 +1,151 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidChildProfile(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.ageYears is int && data.ageYears >= 0 && data.ageYears <= 25 &&
+             data.birthDate is string && data.birthDate.size() >= 1 && data.birthDate.size() <= 30 &&
+             data.gender is string && (data.gender == 'Femenino' || data.gender == 'Masculino') &&
+             data.bloodType is string && data.bloodType.size() >= 1 && data.bloodType.size() <= 10 &&
+             data.allergies is string && data.allergies.size() <= 300 &&
+             data.pediatrician is string && data.pediatrician.size() >= 1 && data.pediatrician.size() <= 120 &&
+             data.emergencyContact is string && data.emergencyContact.size() >= 1 && data.emergencyContact.size() <= 60 &&
+             data.lastCheckupDate is string && data.lastCheckupDate.size() <= 40 &&
+             data.lastCheckupSummary is string && data.lastCheckupSummary.size() <= 300 &&
+             data.avatarColorHex is string && data.avatarColorHex.size() >= 1 && data.avatarColorHex.size() <= 20 &&
+             (data.weightKg is int || data.weightKg is float) && data.weightKg >= 0 && data.weightKg <= 250 &&
+             (data.heightCm is int || data.heightCm is float) && data.heightCm >= 0 && data.heightCm <= 250 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidHealthRecord(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.childId is string && data.childId.size() >= 1 && data.childId.size() <= 128 &&
+             data.childName is string && data.childName.size() >= 1 && data.childName.size() <= 100 &&
+             data.category is string && data.category in [
+               'VACUNA',
+               'HISTORIAL',
+               'CRECIMIENTO',
+               'MEDICAMENTO',
+               'LABORATORIO',
+               'CONSULTA',
+               'NUTRICION',
+               'DOCUMENTO',
+               'CALENDARIO',
+               'HOSPITALIZACION',
+               'SINTOMA_CASA',
+               'DIARIO_BEBE',
+               'DUDA_PADRE',
+               'ESTUDIO_PADRE',
+               'PERINATAL',
+               'NEURODESARROLLO',
+               'CERTIFICADO'
+             ] &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 150 &&
+             data.subtitle is string && data.subtitle.size() <= 200 &&
+             data.dateText is string && data.dateText.size() >= 1 && data.dateText.size() <= 120 &&
+             data.status is string && data.status.size() >= 1 && data.status.size() <= 40 &&
+             data.notes is string && data.notes.size() <= 1500 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId}/children/{childId} {
+      allow get: if isOwner(userId) && isValidId(userId) && isValidId(childId);
+      allow list: if isOwner(userId) && existing().userId == request.auth.uid;
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidId(childId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'name', 'ageYears', 'birthDate', 'gender',
+                         'bloodType', 'allergies', 'pediatrician', 'emergencyContact',
+                         'lastCheckupDate', 'lastCheckupSummary', 'avatarColorHex',
+                         'weightKg', 'heightCm', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'name', 'ageYears', 'birthDate', 'gender',
+                         'bloodType', 'allergies', 'pediatrician', 'emergencyContact',
+                         'lastCheckupDate', 'lastCheckupSummary', 'avatarColorHex',
+                         'weightKg', 'heightCm', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidChildProfile(incoming());
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidId(childId) &&
+                       isValidChildProfile(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'name', 'ageYears', 'birthDate', 'gender',
+                         'bloodType', 'allergies', 'pediatrician', 'emergencyContact',
+                         'lastCheckupDate', 'lastCheckupSummary', 'avatarColorHex',
+                         'weightKg', 'heightCm', 'updatedAt'
+                       ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId) && isValidId(childId);
+    }
+
+    match /users/{userId}/records/{recordId} {
+      allow get: if isOwner(userId) && isValidId(userId) && isValidId(recordId);
+      allow list: if isOwner(userId) && existing().userId == request.auth.uid;
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidId(recordId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'childId', 'childName', 'category',
+                         'title', 'subtitle', 'dateText', 'status',
+                         'notes', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'childId', 'childName', 'category',
+                         'title', 'subtitle', 'dateText', 'status',
+                         'notes', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidHealthRecord(incoming());
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidId(recordId) &&
+                       isValidHealthRecord(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'childId', 'childName', 'category',
+                         'title', 'subtitle', 'dateText', 'status',
+                         'notes', 'updatedAt'
+                       ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId) && isValidId(recordId);
+    }
+  }
+}

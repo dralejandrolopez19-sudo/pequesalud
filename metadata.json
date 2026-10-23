@@ -1,0 +1,6 @@
+{
+  "name": "PequeSalud",
+  "description": "La historia de salud de tus hijos, en un solo lugar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

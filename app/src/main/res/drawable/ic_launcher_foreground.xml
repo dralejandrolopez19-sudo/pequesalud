@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Left Parent Head (Blue) -->
+    <path
+        android:fillColor="#1E78E5"
+        android:pathData="M39,34m-6.5,0a6.5,6.5 0,1 1,13 0a6.5,6.5 0,1 1,-13 0" />
+    <!-- Right Parent Head (Green) -->
+    <path
+        android:fillColor="#0FBA81"
+        android:pathData="M69,34m-6.5,0a6.5,6.5 0,1 1,13 0a6.5,6.5 0,1 1,-13 0" />
+    <!-- Left Heart Wing (Blue) -->
+    <path
+        android:fillColor="#1E78E5"
+        android:pathData="M52,76 C36,68 25,56 26,45 C27,38 34,37 41,42 C46,45 50,50 52,54 L52,62 C47,56 41,50 36,48 C33,47 32,51 35,57 C39,63 45,68 52,72 Z" />
+    <!-- Right Heart Wing (Green) -->
+    <path
+        android:fillColor="#0FBA81"
+        android:pathData="M56,76 C72,68 83,56 82,45 C81,38 74,37 67,42 C62,45 58,50 56,54 L56,62 C61,56 67,50 72,48 C75,47 76,51 73,57 C69,63 63,68 56,72 Z" />
+    <!-- Center Child Head (Navy Blue) -->
+    <path
+        android:fillColor="#164E87"
+        android:pathData="M54,57m-8,0a8,8 0,1 1,16 0a8,8 0,1 1,-16 0" />
+    <!-- Center Child Smile Face (White) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,57 a6,6 0 0,0 12,0 z" />
+    <!-- Tiny Heart Below -->
+    <path
+        android:fillColor="#164E87"
+        android:pathData="M54,79 C51,76 49,74 50,72 C51,70 53,71 54,73 C55,71 57,70 58,72 C59,74 57,76 54,79 Z" />
+</vector>

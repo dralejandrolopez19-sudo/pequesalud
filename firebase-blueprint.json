@@ -1,0 +1,195 @@
+{
+  "entities": {
+    "ChildProfile": {
+      "title": "ChildProfile",
+      "description": "Perfil pediátrico de un hijo o hija dentro de la familia en PequeSalud.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID del padre/madre o tutor autenticado propietario del registro."
+        },
+        "name": {
+          "type": "string",
+          "description": "Nombre completo del niño o niña."
+        },
+        "ageYears": {
+          "type": "integer",
+          "description": "Edad en años cumplidos."
+        },
+        "birthDate": {
+          "type": "string",
+          "description": "Fecha de nacimiento en formato DD/MM/AAAA."
+        },
+        "gender": {
+          "type": "string",
+          "enum": ["Femenino", "Masculino"],
+          "description": "Sexo biológico o género registrado en la ficha pediátrica."
+        },
+        "bloodType": {
+          "type": "string",
+          "description": "Grupo sanguíneo y factor Rh (ej. O+, A+, B-)."
+        },
+        "allergies": {
+          "type": "string",
+          "description": "Alergias conocidas a medicamentos o alimentos (ej. Penicilina)."
+        },
+        "pediatrician": {
+          "type": "string",
+          "description": "Nombre de la pediatra o médico de cabecera."
+        },
+        "emergencyContact": {
+          "type": "string",
+          "description": "Teléfono de contacto de emergencia."
+        },
+        "lastCheckupDate": {
+          "type": "string",
+          "description": "Fecha del último control pediátrico."
+        },
+        "lastCheckupSummary": {
+          "type": "string",
+          "description": "Resumen breve del último control."
+        },
+        "avatarColorHex": {
+          "type": "string",
+          "description": "Color identificador del avatar en formato hexadecimal."
+        },
+        "weightKg": {
+          "type": "number",
+          "description": "Último peso registrado en kilogramos."
+        },
+        "heightCm": {
+          "type": "number",
+          "description": "Última talla registrada en centímetros."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca de tiempo de creación generada con FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca de tiempo de actualización generada con FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "name",
+        "ageYears",
+        "birthDate",
+        "gender",
+        "bloodType",
+        "allergies",
+        "pediatrician",
+        "emergencyContact",
+        "lastCheckupDate",
+        "lastCheckupSummary",
+        "avatarColorHex",
+        "weightKg",
+        "heightCm",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "HealthRecord": {
+      "title": "HealthRecord",
+      "description": "Registro médico pediátrico (vacuna, consulta, historial, crecimiento, medicamento, laboratorio, nutrición, documento, calendario u hospitalización).",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID del padre/madre o tutor autenticado propietario del registro."
+        },
+        "childId": {
+          "type": "string",
+          "description": "ID del perfil del niño asociado."
+        },
+        "childName": {
+          "type": "string",
+          "description": "Nombre del niño asociado."
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "VACUNA",
+            "HISTORIAL",
+            "CRECIMIENTO",
+            "MEDICAMENTO",
+            "LABORATORIO",
+            "CONSULTA",
+            "NUTRICION",
+            "DOCUMENTO",
+            "CALENDARIO",
+            "HOSPITALIZACION",
+            "SINTOMA_CASA",
+            "DIARIO_BEBE",
+            "DUDA_PADRE",
+            "ESTUDIO_PADRE",
+            "PERINATAL",
+            "NEURODESARROLLO",
+            "CERTIFICADO"
+          ],
+          "description": "Módulo clínico o categoría familiar al que pertenece el registro."
+        },
+        "title": {
+          "type": "string",
+          "description": "Título principal (ej. nombre de vacuna, estudio, medicamento o consulta)."
+        },
+        "subtitle": {
+          "type": "string",
+          "description": "Subtítulo descriptivo (ej. número de dosis, especialista, posología)."
+        },
+        "dateText": {
+          "type": "string",
+          "description": "Fecha o fechas de aplicación/consulta."
+        },
+        "status": {
+          "type": "string",
+          "description": "Estado del registro (Aplicada, Pendiente, Activo, Completado, Normal, Programada)."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Detalles adicionales, métricas antropométricas, observaciones médicas o resultados."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca de tiempo de creación generada con FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca de tiempo de actualización generada con FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "childId",
+        "childName",
+        "category",
+        "title",
+        "subtitle",
+        "dateText",
+        "status",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/children/{childId}": {
+      "schema": {
+        "$ref": "#/entities/ChildProfile"
+      },
+      "description": "Colección de perfiles pediátricos de los hijos del usuario autenticado."
+    },
+    "/users/{userId}/records/{recordId}": {
+      "schema": {
+        "$ref": "#/entities/HealthRecord"
+      },
+      "description": "Colección de registros clínicos pediátricos (vacunas, consultas, laboratorios, crecimiento, medicamentos, etc.) del usuario autenticado."
+    }
+  }
+}
