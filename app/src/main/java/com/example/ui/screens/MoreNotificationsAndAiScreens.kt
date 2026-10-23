@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.FolderCopy
@@ -47,6 +48,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Vaccines
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -63,6 +65,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -629,10 +632,48 @@ fun MoreAndFullStructureScreen(
     pediatricianName: String = "Dr. Alejandro López",
     currentPin: String = "1234",
     onRequestSwitchWorkspace: () -> Unit = {},
-    onOpenPinSettings: () -> Unit = {}
+    onOpenPinSettings: () -> Unit = {},
+    onClearAllData: () -> Unit = {}
 ) {
     var cloudSyncEnabled by remember { mutableStateOf(true) }
     var biometricPrivacyEnabled by remember { mutableStateOf(true) }
+    var showConfirmResetDialog by remember { mutableStateOf(false) }
+
+    if (showConfirmResetDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmResetDialog = false },
+            title = {
+                Text(
+                    text = "Reiniciar expediente en blanco",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "¿Deseas eliminar todos los pacientes y registros actuales para dejar la aplicación completamente limpia y empezar desde cero?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showConfirmResetDialog = false
+                        onClearAllData()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AlertRed),
+                    modifier = Modifier.testTag("confirm_clear_all_data_button")
+                ) {
+                    Text("Sí, dejar en blanco", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmResetDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
 
     val structureCards = listOf(
         FullStructureCardData(
@@ -1027,6 +1068,28 @@ fun MoreAndFullStructureScreen(
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
+
+                    OutlinedButton(
+                        onClick = { showConfirmResetDialog = true },
+                        shape = RoundedCornerShape(50),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("clear_all_data_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteOutline,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Reiniciar expediente en blanco",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
 
                     OutlinedButton(
                         onClick = onSignOut,

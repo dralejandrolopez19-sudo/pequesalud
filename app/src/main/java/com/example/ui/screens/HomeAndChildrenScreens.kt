@@ -604,7 +604,8 @@ fun ChildProfileScreen(
     onSelectChild: (String) -> Unit,
     onAddChildClicked: () -> Unit,
     onEditChild: (ChildProfile) -> Unit,
-    onOpenVaccines: () -> Unit
+    onOpenVaccines: () -> Unit,
+    onDeleteChild: ((String) -> Unit)? = null
 ) {
     if (showBackButton) {
         BackHandler { onBack() }
@@ -613,6 +614,7 @@ fun ChildProfileScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     var showQrModal by remember { mutableStateOf(false) }
     var showEditModal by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     val childRecords = records.filter { it.childId == child.id || it.childName == child.name }
 
@@ -630,6 +632,30 @@ fun ChildProfileScreen(
             onConfirm = { updated ->
                 onEditChild(updated)
                 showEditModal = false
+            }
+        )
+    }
+
+    if (showDeleteConfirm && onDeleteChild != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Eliminar perfil de ${child.name}", fontWeight = FontWeight.Bold) },
+            text = { Text("¿Deseas eliminar este perfil del expediente? Puedes volver a registrarlo cuando quieras.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteChild(child.id)
+                        showDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AlertRed)
+                ) {
+                    Text("Eliminar", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancelar")
+                }
             }
         )
     }
@@ -680,7 +706,7 @@ fun ChildProfileScreen(
         }
 
         // Selector rápido entre hermanos cuando estamos en la pestaña "Mis hijos"
-        if (!showBackButton && allChildren.size > 1) {
+        if (!showBackButton) {
             item {
                 Row(
                     modifier = Modifier
@@ -702,7 +728,7 @@ fun ChildProfileScreen(
                     FilterChip(
                         selected = false,
                         onClick = onAddChildClicked,
-                        label = { Text("+ Agregar hijo") }
+                        label = { Text("+ Agregar hijo/a") }
                     )
                 }
             }
@@ -732,22 +758,43 @@ fun ChildProfileScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                OutlinedButton(
-                    onClick = { showEditModal = true },
-                    shape = RoundedCornerShape(50),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.primary
-                    ),
-                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 6.dp),
-                    modifier = Modifier.testTag("edit_child_profile_button")
-                ) {
-                    Text(
-                        text = "Editar perfil",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(
+                        onClick = { showEditModal = true },
+                        shape = RoundedCornerShape(50),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.primary
+                        ),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 6.dp),
+                        modifier = Modifier.testTag("edit_child_profile_button")
+                    ) {
+                        Text(
+                            text = "Editar datos",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (onDeleteChild != null) {
+                        OutlinedButton(
+                            onClick = { showDeleteConfirm = true },
+                            shape = RoundedCornerShape(50),
+                            border = BorderStroke(1.dp, AlertRed.copy(alpha = 0.45f)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = AlertRed
+                            ),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                            modifier = Modifier.testTag("delete_child_profile_button")
+                        ) {
+                            Text(
+                                text = "Eliminar",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1136,28 +1183,120 @@ private fun MetricPill(
 }
 
 @Composable
+fun EmptyChildrenProfileState(
+    onAddChildClicked: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(PequeBlue.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        tint = PequeBlue,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+                Text(
+                    text = "Expediente listo para colocar datos",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Registra el perfil de tu hijo/a o paciente para comenzar a llenar peso, talla, vacunas, síntomas e indicaciones médicas.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    onClick = onAddChildClicked,
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(containerColor = PequeBlue),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("empty_children_register_button")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Registrar Hijo/a o Paciente",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun AddOrEditChildDialog(
     initialChild: ChildProfile? = null,
     onDismiss: () -> Unit,
     onConfirm: (ChildProfile) -> Unit
 ) {
     var name by remember { mutableStateOf(initialChild?.name ?: "") }
-    var ageYears by remember { mutableStateOf(initialChild?.ageYears?.toString() ?: "4") }
-    var birthDate by remember { mutableStateOf(initialChild?.birthDate ?: "15/05/2022") }
+    var ageYears by remember { mutableStateOf(initialChild?.ageYears?.toString() ?: "") }
+    var birthDate by remember {
+        mutableStateOf(
+            initialChild?.birthDate?.takeIf { it != "Por registrar" } ?: ""
+        )
+    }
     var gender by remember { mutableStateOf(initialChild?.gender ?: "Femenino") }
     var bloodType by remember { mutableStateOf(initialChild?.bloodType ?: "O+") }
-    var allergies by remember { mutableStateOf(initialChild?.allergies ?: "Ninguna") }
-    var pediatrician by remember { mutableStateOf(initialChild?.pediatrician ?: "Dra. María González") }
-    var emergencyContact by remember { mutableStateOf(initialChild?.emergencyContact ?: "809-555-1234") }
-    var weightKg by remember { mutableStateOf(initialChild?.weightKg?.toString() ?: "16.5") }
-    var heightCm by remember { mutableStateOf(initialChild?.heightCm?.toString() ?: "102.0") }
+    var allergies by remember {
+        mutableStateOf(
+            initialChild?.allergies?.takeIf { it != "Ninguna" } ?: ""
+        )
+    }
+    var pediatrician by remember { mutableStateOf(initialChild?.pediatrician ?: "") }
+    var emergencyContact by remember {
+        mutableStateOf(
+            initialChild?.emergencyContact?.takeIf { it != "Por registrar" } ?: ""
+        )
+    }
+    var weightKg by remember {
+        mutableStateOf(
+            initialChild?.weightKg?.takeIf { it > 0.0 }?.toString() ?: ""
+        )
+    }
+    var heightCm by remember {
+        mutableStateOf(
+            initialChild?.heightCm?.takeIf { it > 0.0 }?.toString() ?: ""
+        )
+    }
+    var nameError by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = if (initialChild == null) "Agregar hijo/a" else "Editar perfil de ${initialChild.name}",
+                text = if (initialChild == null) "Registrar Hijo/a o Paciente" else "Editar datos de ${initialChild.name}",
                 style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
         },
@@ -1166,31 +1305,31 @@ fun AddOrEditChildDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Nombre completo") },
+                    onValueChange = {
+                        name = it
+                        nameError = false
+                    },
+                    label = { Text("Nombre completo *") },
+                    placeholder = { Text("Ej. Sofía López") },
+                    isError = nameError,
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("child_dialog_name_input")
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = ageYears,
-                        onValueChange = { ageYears = it },
-                        label = { Text("Edad (años)") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = bloodType,
-                        onValueChange = { bloodType = it },
-                        label = { Text("Grupo sanguíneo") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
+                if (nameError) {
+                    Text(
+                        text = "Por favor escribe el nombre del niño/a.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AlertRed,
+                        fontWeight = FontWeight.Bold
                     )
                 }
+
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = gender == "Femenino",
@@ -1203,17 +1342,70 @@ fun AddOrEditChildDialog(
                         label = { Text("Masculino") }
                     )
                 }
-                OutlinedTextField(
-                    value = birthDate,
-                    onValueChange = { birthDate = it },
-                    label = { Text("Fecha de nacimiento (DD/MM/AAAA)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = ageYears,
+                        onValueChange = { ageYears = it.filter { ch -> ch.isDigit() }.take(2) },
+                        label = { Text("Edad (años)") },
+                        placeholder = { Text("Ej. 3") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = birthDate,
+                        onValueChange = { birthDate = it },
+                        label = { Text("Fecha nac.") },
+                        placeholder = { Text("DD/MM/AAAA") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1.3f)
+                    )
+                }
+
+                Text(
+                    text = "Grupo sanguíneo:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf("O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-").forEach { bt ->
+                        FilterChip(
+                            selected = bloodType == bt,
+                            onClick = { bloodType = bt },
+                            label = { Text(bt) }
+                        )
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = weightKg,
+                        onValueChange = { weightKg = it },
+                        label = { Text("Peso actual (kg)") },
+                        placeholder = { Text("Ej. 14.5") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = heightCm,
+                        onValueChange = { heightCm = it },
+                        label = { Text("Talla actual (cm)") },
+                        placeholder = { Text("Ej. 96.0") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
                 OutlinedTextField(
                     value = allergies,
                     onValueChange = { allergies = it },
-                    label = { Text("Alergias") },
+                    label = { Text("Alergias conocidas") },
+                    placeholder = { Text("Dejar vacío si no tiene alergias") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1221,49 +1413,39 @@ fun AddOrEditChildDialog(
                     value = pediatrician,
                     onValueChange = { pediatrician = it },
                     label = { Text("Pediatra de cabecera") },
+                    placeholder = { Text("Ej. Dr. Alejandro López") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = emergencyContact,
                     onValueChange = { emergencyContact = it },
-                    label = { Text("Contacto de emergencia") },
+                    label = { Text("Teléfono / Contacto de emergencia") },
+                    placeholder = { Text("Ej. 809-555-0000") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = weightKg,
-                        onValueChange = { weightKg = it },
-                        label = { Text("Peso (kg)") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = heightCm,
-                        onValueChange = { heightCm = it },
-                        label = { Text("Talla (cm)") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    val parsedAge = ageYears.toLongOrNull()?.coerceIn(0L, 25L) ?: 4L
-                    val parsedWeight = weightKg.toDoubleOrNull()?.coerceIn(1.0, 200.0) ?: 16.5
-                    val parsedHeight = heightCm.toDoubleOrNull()?.coerceIn(30.0, 220.0) ?: 102.0
+                    if (name.isBlank()) {
+                        nameError = true
+                        return@Button
+                    }
+                    val parsedAge = ageYears.toLongOrNull()?.coerceIn(0L, 25L) ?: 0L
+                    val parsedWeight = weightKg.replace(",", ".").toDoubleOrNull()?.coerceIn(0.0, 200.0) ?: 0.0
+                    val parsedHeight = heightCm.replace(",", ".").toDoubleOrNull()?.coerceIn(0.0, 220.0) ?: 0.0
                     val profile = (initialChild ?: ChildProfile()).copy(
-                        name = name.ifBlank { "Nuevo Hijo" },
+                        name = name.trim(),
                         ageYears = parsedAge,
-                        birthDate = birthDate.ifBlank { "01/01/2022" },
+                        birthDate = birthDate.trim().ifBlank { "Por registrar" },
                         gender = gender,
-                        bloodType = bloodType.ifBlank { "O+" },
-                        allergies = allergies.ifBlank { "Ninguna" },
-                        pediatrician = pediatrician.ifBlank { "Dra. María González" },
-                        emergencyContact = emergencyContact.ifBlank { "809-555-1234" },
+                        bloodType = bloodType.trim().ifBlank { "O+" },
+                        allergies = allergies.trim().ifBlank { "Ninguna" },
+                        pediatrician = pediatrician.trim().ifBlank { "Dr. Alejandro López" },
+                        emergencyContact = emergencyContact.trim().ifBlank { "Por registrar" },
                         weightKg = parsedWeight,
                         heightCm = parsedHeight,
                         avatarColorHex = initialChild?.avatarColorHex
@@ -1271,9 +1453,10 @@ fun AddOrEditChildDialog(
                     )
                     onConfirm(profile)
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = PequeBlue)
+                colors = ButtonDefaults.buttonColors(containerColor = PequeBlue),
+                modifier = Modifier.testTag("confirm_save_child_button")
             ) {
-                Text("Guardar", color = Color.White)
+                Text("Guardar datos", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

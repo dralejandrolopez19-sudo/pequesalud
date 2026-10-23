@@ -61,6 +61,12 @@ class PequeSaludRepository(private val db: FirebaseFirestore) {
                     snapshot.toObjects(
                         HealthRecord::class.java,
                         DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                    ).sortedWith(
+                        compareByDescending<HealthRecord> {
+                            it.updatedAt?.seconds ?: it.createdAt?.seconds ?: 0L
+                        }.thenByDescending {
+                            it.updatedAt?.nanoseconds ?: it.createdAt?.nanoseconds ?: 0
+                        }
                     )
                 }
                 .catch { error ->
@@ -133,16 +139,16 @@ class PequeSaludRepository(private val db: FirebaseFirestore) {
         val docRef = db.collection("users").document(uid).collection("children").document(profile.id)
         return try {
             val updates = mapOf(
-                "name" to profile.name.trim().ifEmpty { "Niño/a" },
+                "name" to profile.name.trim().ifEmpty { "Paciente" },
                 "ageYears" to profile.ageYears,
-                "birthDate" to profile.birthDate.trim().ifEmpty { "01/01/2020" },
+                "birthDate" to profile.birthDate.trim().ifEmpty { "Por registrar" },
                 "gender" to if (profile.gender == "Masculino") "Masculino" else "Femenino",
                 "bloodType" to profile.bloodType.trim().ifEmpty { "O+" },
-                "allergies" to profile.allergies.trim(),
-                "pediatrician" to profile.pediatrician.trim().ifEmpty { "Dra. María González" },
-                "emergencyContact" to profile.emergencyContact.trim().ifEmpty { "809-555-1234" },
-                "lastCheckupDate" to profile.lastCheckupDate.trim(),
-                "lastCheckupSummary" to profile.lastCheckupSummary.trim(),
+                "allergies" to profile.allergies.trim().ifEmpty { "Ninguna" },
+                "pediatrician" to profile.pediatrician.trim().ifEmpty { "Dr. Alejandro López" },
+                "emergencyContact" to profile.emergencyContact.trim().ifEmpty { "Por registrar" },
+                "lastCheckupDate" to profile.lastCheckupDate.trim().ifEmpty { "Recién registrado" },
+                "lastCheckupSummary" to profile.lastCheckupSummary.trim().ifEmpty { "Sin indicaciones registradas aún" },
                 "avatarColorHex" to profile.avatarColorHex.trim().ifEmpty { "#E2ECFA" },
                 "weightKg" to profile.weightKg,
                 "heightCm" to profile.heightCm,
@@ -245,6 +251,64 @@ class PequeSaludRepository(private val db: FirebaseFirestore) {
             throw e
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.DELETE, docRef.path)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Limpia automáticamente los perfiles y registros de demostración pre-sembrados
+     * ("sofia_lopez", "mateo_lopez", "valentina_lopez", "seed_rec_*", "seed_dual_ws_*")
+     * para dejar la aplicación limpia y lista para ingresar datos reales.
+     */
+    suspend fun purgePreseededDemoData() {
+        val uid = auth.currentUser?.uid ?: return
+        val childrenCol = db.collection("users").document(uid).collection("children")
+        val recordsCol = db.collection("users").document(uid).collection("records")
+
+        val demoChildIds = listOf("sofia_lopez", "mateo_lopez", "valentina_lopez")
+        val demoRecordIds = (1..25).map { "seed_rec_$it" } + (1..15).map { "seed_dual_ws_$it" }
+
+        val batch = db.batch()
+        demoChildIds.forEach { id ->
+            batch.delete(childrenCol.document(id))
+        }
+        demoRecordIds.forEach { id ->
+            batch.delete(recordsCol.document(id))
+        }
+        try {
+            batch.commit().await()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Ignorar si ya no existen
+        }
+    }
+
+    /**
+     * Vacía todos los perfiles y registros del usuario activo para iniciar el expediente desde cero.
+     */
+    suspend fun clearAllUserData(): Result<Unit> {
+        val uid = requireUserId()
+        return try {
+            val childrenSnap = db.collection("users").document(uid).collection("children")
+                .whereEqualTo("userId", uid)
+                .get()
+                .await()
+            val recordsSnap = db.collection("users").document(uid).collection("records")
+                .whereEqualTo("userId", uid)
+                .get()
+                .await()
+
+            val allRefs = childrenSnap.documents.map { it.reference } + recordsSnap.documents.map { it.reference }
+            allRefs.chunked(400).forEach { chunk ->
+                val batch = db.batch()
+                chunk.forEach { ref -> batch.delete(ref) }
+                batch.commit().await()
+            }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
             Result.failure(e)
         }
     }

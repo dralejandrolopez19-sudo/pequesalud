@@ -238,8 +238,12 @@ fun ParentHomeDashboardScreen(
 
     val activeMeds = childRecords.filter { it.category == "MEDICAMENTO" && it.status.equals("Activo", ignoreCase = true) }
     val pendingVaccines = childRecords.filter { it.category == "VACUNA" && it.status.equals("Pendiente", ignoreCase = true) }
-    val answeredDoubts = childRecords.filter {
-        it.category == "DUDA_PADRE" && (it.status.contains("Respondida", ignoreCase = true) || it.notes.contains("Respuesta", ignoreCase = true))
+    val doctorDirectIndications = childRecords.filter {
+        it.category == "CONSULTA" || it.category == "CERTIFICADO"
+    }
+    val answeredParentReports = childRecords.filter {
+        it.category in listOf("SINTOMA_CASA", "DUDA_PADRE", "DIARIO_BEBE", "ESTUDIO_PADRE") &&
+            (it.notes.contains("|") || it.status.contains("Respondida", ignoreCase = true) || it.status.contains("Revisado", ignoreCase = true))
     }
 
     var showSymptomDialog by remember { mutableStateOf(false) }
@@ -440,21 +444,45 @@ fun ParentHomeDashboardScreen(
                     }
 
                     Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                        shape = if (children.isEmpty()) RoundedCornerShape(50) else CircleShape,
+                        color = if (children.isEmpty()) PequeBlue else MaterialTheme.colorScheme.surface,
+                        border = if (children.isEmpty()) null else BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                        ),
                         modifier = Modifier
-                            .size(38.dp)
+                            .then(if (children.isEmpty()) Modifier else Modifier.size(38.dp))
                             .clickable { onAddChildClicked() }
                             .testTag("parent_add_child_button")
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Agregar hijo",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
+                        if (children.isEmpty()) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Registrar hijo/a",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Registrar hijo/a",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        } else {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Agregar hijo",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -480,6 +508,12 @@ fun ParentHomeDashboardScreen(
                             )
                         }
                     }
+                } else {
+                    Text(
+                        text = "Toca \"+ Registrar hijo/a\" para colocar los datos de tu hijo y comenzar.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -505,7 +539,10 @@ fun ParentHomeDashboardScreen(
                         accentColor = AlertRed,
                         testTag = "parent_action_symptom",
                         modifier = Modifier.weight(1f),
-                        onClick = { showSymptomDialog = true }
+                        onClick = {
+                            if (activeChild == null) onAddChildClicked()
+                            else showSymptomDialog = true
+                        }
                     )
                     MinimalActionCard(
                         title = "Diario",
@@ -514,7 +551,10 @@ fun ParentHomeDashboardScreen(
                         accentColor = PequeGreen,
                         testTag = "parent_action_diary",
                         modifier = Modifier.weight(1f),
-                        onClick = { showBabyDiaryDialog = true }
+                        onClick = {
+                            if (activeChild == null) onAddChildClicked()
+                            else showBabyDiaryDialog = true
+                        }
                     )
                 }
 
@@ -529,7 +569,10 @@ fun ParentHomeDashboardScreen(
                         accentColor = PequeBlue,
                         testTag = "parent_action_doubt",
                         modifier = Modifier.weight(1f),
-                        onClick = { showParentDoubtDialog = true }
+                        onClick = {
+                            if (activeChild == null) onAddChildClicked()
+                            else showParentDoubtDialog = true
+                        }
                     )
                     MinimalActionCard(
                         title = "Estudios",
@@ -538,7 +581,10 @@ fun ParentHomeDashboardScreen(
                         accentColor = CardAiIcon,
                         testTag = "parent_action_study",
                         modifier = Modifier.weight(1f),
-                        onClick = { showUploadStudyDialog = true }
+                        onClick = {
+                            if (activeChild == null) onAddChildClicked()
+                            else showUploadStudyDialog = true
+                        }
                     )
                 }
             }
@@ -576,96 +622,206 @@ fun ParentHomeDashboardScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            if (activeMeds.isEmpty() && answeredDoubts.isEmpty()) {
-                                Text(
-                                    text = "Sin tratamientos activos hoy · ${activeChild.lastCheckupSummary}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            } else {
-                                activeMeds.take(2).forEachIndexed { idx, med ->
-                                    if (idx > 0) {
-                                        HorizontalDivider(
-                                            modifier = Modifier.padding(vertical = 10.dp),
-                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                            var hasRenderedItem = false
+
+                            // 1) Indicaciones directas o planes de consulta del pediatra
+                            doctorDirectIndications.take(2).forEach { ind ->
+                                if (hasRenderedItem) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 10.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                    )
+                                }
+                                hasRenderedItem = true
+                                Row(
+                                    verticalAlignment = Alignment.Top,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onOpenReadOnlySection(0) }
+                                        .testTag("parent_doctor_indication_row_${ind.id}")
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(PequeBlue.copy(alpha = 0.12f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MedicalServices,
+                                            contentDescription = null,
+                                            tint = PequeBlue,
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .clip(CircleShape)
-                                                .background(PequeBlue.copy(alpha = 0.1f)),
-                                            contentAlignment = Alignment.Center
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Medication,
-                                                contentDescription = null,
-                                                tint = PequeBlue,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = med.title,
+                                                text = ind.title,
                                                 style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Text(
+                                                text = ind.dateText,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = PequeBlue,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                        if (ind.subtitle.isNotBlank()) {
+                                            Text(
+                                                text = ind.subtitle,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Medium,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
-                                            Text(
-                                                text = med.subtitle,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
                                         }
-                                    }
-                                }
-
-                                if (answeredDoubts.isNotEmpty()) {
-                                    val latest = answeredDoubts.first()
-                                    if (activeMeds.isNotEmpty()) {
-                                        HorizontalDivider(
-                                            modifier = Modifier.padding(vertical = 10.dp),
-                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                                        )
-                                    }
-                                    Row(
-                                        verticalAlignment = Alignment.Top,
-                                        modifier = Modifier.clickable { onOpenTrackerWithFilter(3) }
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .clip(CircleShape)
-                                                .background(PequeGreen.copy(alpha = 0.12f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Verified,
-                                                contentDescription = null,
-                                                tint = PequeGreen,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
+                                        if (ind.notes.isNotBlank()) {
                                             Text(
-                                                text = "Respuesta a tu duda",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = PequeGreen
-                                            )
-                                            Text(
-                                                text = latest.notes.substringAfter("|", latest.notes).trim(),
+                                                text = ind.notes,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurface,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 maxLines = 2,
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
                                 }
+                            }
+
+                            // 2) Recetas y medicamentos activos
+                            activeMeds.take(2).forEach { med ->
+                                if (hasRenderedItem) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 10.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                    )
+                                }
+                                hasRenderedItem = true
+                                Row(
+                                    verticalAlignment = Alignment.Top,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onOpenReadOnlySection(0) }
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(PequeBlue.copy(alpha = 0.1f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Medication,
+                                            contentDescription = null,
+                                            tint = PequeBlue,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = med.title,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = med.subtitle,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        if (med.notes.isNotBlank()) {
+                                            Text(
+                                                text = med.notes,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = PequeBlue,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 3) Respuestas del pediatra a síntomas, dudas, diario o estudios de casa
+                            answeredParentReports.take(2).forEach { rep ->
+                                if (hasRenderedItem) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 10.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                    )
+                                }
+                                hasRenderedItem = true
+                                val filterIdx = when (rep.category) {
+                                    "SINTOMA_CASA" -> 1
+                                    "DIARIO_BEBE" -> 2
+                                    "DUDA_PADRE" -> 3
+                                    "ESTUDIO_PADRE" -> 4
+                                    else -> 0
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.Top,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onOpenTrackerWithFilter(filterIdx) }
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(PequeGreen.copy(alpha = 0.12f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Verified,
+                                            contentDescription = null,
+                                            tint = PequeGreen,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Respuesta médica · ${rep.title}",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = PequeGreen
+                                        )
+                                        Text(
+                                            text = rep.notes.substringAfter("|", rep.notes).trim(),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (!hasRenderedItem) {
+                                Text(
+                                    text = "Última nota médica: ${activeChild.lastCheckupSummary}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else if (activeChild.lastCheckupSummary.isNotBlank()) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 10.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                )
+                                Text(
+                                    text = "Resumen actual: ${activeChild.lastCheckupSummary}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -837,7 +993,8 @@ fun ParentHomeTrackerScreen(
     initialFilterIndex: Int = 0,
     onSelectChild: (String) -> Unit,
     onAddRecord: (HealthRecord) -> Unit,
-    onDeleteRecord: (String) -> Unit
+    onDeleteRecord: (String) -> Unit,
+    onAddChildClicked: () -> Unit = {}
 ) {
     var selectedFilter by remember(initialFilterIndex) { mutableIntStateOf(initialFilterIndex) }
     var showSymptomDialog by remember { mutableStateOf(false) }
@@ -929,11 +1086,15 @@ fun ParentHomeTrackerScreen(
                 }
                 Button(
                     onClick = {
-                        when (selectedFilter) {
-                            2 -> showBabyDiaryDialog = true
-                            3 -> showParentDoubtDialog = true
-                            4 -> showUploadStudyDialog = true
-                            else -> showSymptomDialog = true
+                        if (activeChild == null) {
+                            onAddChildClicked()
+                        } else {
+                            when (selectedFilter) {
+                                2 -> showBabyDiaryDialog = true
+                                3 -> showParentDoubtDialog = true
+                                4 -> showUploadStudyDialog = true
+                                else -> showSymptomDialog = true
+                            }
                         }
                     },
                     shape = RoundedCornerShape(50),
@@ -942,7 +1103,26 @@ fun ParentHomeTrackerScreen(
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Nuevo", color = Color.White)
+                    Text(if (activeChild == null) "Registrar hijo/a" else "Nuevo", color = Color.White)
+                }
+            }
+        }
+
+        if (allChildren.size > 1) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    allChildren.forEach { child ->
+                        FilterChip(
+                            selected = activeChild?.id == child.id,
+                            onClick = { onSelectChild(child.id) },
+                            label = { Text(child.name.substringBefore(" ")) }
+                        )
+                    }
                 }
             }
         }
@@ -1113,8 +1293,27 @@ fun ParentSimpleReadOnlyScreen(
             }
         }
 
+        if (allChildren.size > 1) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    allChildren.forEach { child ->
+                        FilterChip(
+                            selected = activeChild?.id == child.id,
+                            onClick = { onSelectChild(child.id) },
+                            label = { Text(child.name.substringBefore(" ")) }
+                        )
+                    }
+                }
+            }
+        }
+
         item {
-            val tabs = listOf("Recetas", "Vacunas", "Crecimiento", "Documentos")
+            val tabs = listOf("Indicaciones y Recetas", "Vacunas", "Crecimiento", "Documentos")
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1133,15 +1332,31 @@ fun ParentSimpleReadOnlyScreen(
 
         when (selectedSection) {
             0 -> {
-                val meds = childRecords.filter { it.category == "MEDICAMENTO" || it.category == "NUTRICION" }
-                itemsIndexed(meds, key = { idx, rec -> "${rec.id.ifBlank { "med" }}_$idx" }) { _, rec ->
-                    MinimalReadOnlyCard(
-                        title = rec.title,
-                        subtitle = rec.subtitle,
-                        meta = "${rec.dateText} · ${rec.status}",
-                        notes = rec.notes,
-                        accentColor = PequeBlue
-                    )
+                val medsAndIndications = childRecords.filter {
+                    it.category in listOf("MEDICAMENTO", "CONSULTA", "NUTRICION", "HISTORIAL") ||
+                        (it.category in listOf("SINTOMA_CASA", "DUDA_PADRE", "DIARIO_BEBE", "ESTUDIO_PADRE") && it.notes.contains("|"))
+                }
+                if (medsAndIndications.isEmpty()) {
+                    item {
+                        MinimalReadOnlyCard(
+                            title = "Resumen médico actual",
+                            subtitle = activeChild?.lastCheckupSummary ?: "Sin indicaciones activas",
+                            meta = activeChild?.name ?: "Pediatría",
+                            notes = "Cuando tu pediatra registre una indicación, receta o respuesta a tus reportes, aparecerá aquí de inmediato.",
+                            accentColor = PequeBlue
+                        )
+                    }
+                } else {
+                    itemsIndexed(medsAndIndications, key = { idx, rec -> "${rec.id.ifBlank { "med" }}_$idx" }) { _, rec ->
+                        val isDoctorReply = rec.category in listOf("SINTOMA_CASA", "DUDA_PADRE", "DIARIO_BEBE", "ESTUDIO_PADRE")
+                        MinimalReadOnlyCard(
+                            title = if (isDoctorReply) "Respuesta a: ${rec.title}" else rec.title,
+                            subtitle = rec.subtitle,
+                            meta = "${rec.dateText} · ${rec.status}",
+                            notes = if (isDoctorReply) rec.notes.substringAfter("|", rec.notes).trim() else rec.notes,
+                            accentColor = if (isDoctorReply) PequeGreen else PequeBlue
+                        )
+                    }
                 }
             }
 
@@ -1153,7 +1368,7 @@ fun ParentSimpleReadOnlyScreen(
                         title = vac.title,
                         subtitle = vac.subtitle,
                         meta = if (isApplied) "Al día (${vac.dateText})" else "Próxima (${vac.dateText})",
-                        notes = "",
+                        notes = vac.notes,
                         accentColor = if (isApplied) PequeGreen else PequeOrange
                     )
                 }
@@ -1174,13 +1389,13 @@ fun ParentSimpleReadOnlyScreen(
 
             3 -> {
                 val docs = childRecords.filter {
-                    it.category in listOf("CERTIFICADO", "DOCUMENTO", "CONSULTA", "CALENDARIO")
+                    it.category in listOf("CERTIFICADO", "DOCUMENTO", "CONSULTA", "CALENDARIO", "LABORATORIO")
                 }
                 itemsIndexed(docs, key = { idx, rec -> "${rec.id.ifBlank { "doc" }}_$idx" }) { _, rec ->
                     MinimalReadOnlyCard(
                         title = rec.title,
                         subtitle = rec.subtitle,
-                        meta = rec.dateText,
+                        meta = "${rec.dateText} · ${rec.status}",
                         notes = rec.notes,
                         accentColor = PequeBlue
                     )
@@ -1250,9 +1465,9 @@ fun ParentAddSymptomDialog(
     onDismiss: () -> Unit,
     onSave: (HealthRecord) -> Unit
 ) {
-    var temperature by remember { mutableStateOf("37.8") }
-    val symptomOptions = listOf("Fiebre", "Tos", "Mocos", "Dolor de oído", "Dolor de garganta", "Vómito", "Ronchas")
-    var selectedSymptoms by remember { mutableStateOf(setOf("Fiebre")) }
+    var temperature by remember { mutableStateOf("") }
+    val symptomOptions = listOf("Fiebre", "Tos", "Mocos", "Dolor de oído", "Dolor de garganta", "Vómito", "Diarrea", "Ronchas")
+    var selectedSymptoms by remember { mutableStateOf(emptySet<String>()) }
     var homeNotes by remember { mutableStateOf("") }
 
     AlertDialog(
@@ -1269,8 +1484,11 @@ fun ParentAddSymptomDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("36.6", "37.5", "38.2", "39.0").forEach { preset ->
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf("36.5", "37.5", "38.0", "38.5", "39.0").forEach { preset ->
                         FilterChip(
                             selected = temperature == preset,
                             onClick = { temperature = preset },
@@ -1282,6 +1500,7 @@ fun ParentAddSymptomDialog(
                     value = temperature,
                     onValueChange = { temperature = it },
                     label = { Text("Temperatura (°C)") },
+                    placeholder = { Text("Ej. 38.2") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1308,6 +1527,7 @@ fun ParentAddSymptomDialog(
                     value = homeNotes,
                     onValueChange = { homeNotes = it },
                     label = { Text("Nota breve para el pediatra") },
+                    placeholder = { Text("Describe qué observaste en casa...") },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -1315,25 +1535,30 @@ fun ParentAddSymptomDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val tempVal = temperature.toDoubleOrNull() ?: 37.0
-                    val symText = if (selectedSymptoms.isEmpty()) "Malestar" else selectedSymptoms.joinToString(", ")
+                    val cleanTemp = temperature.replace(",", ".").trim()
+                    val tempVal = cleanTemp.toDoubleOrNull() ?: 36.8
+                    val symText = if (selectedSymptoms.isEmpty()) "Malestar en casa" else selectedSymptoms.joinToString(", ")
                     val statusLabel = if (tempVal >= 38.0) "Alerta en casa" else "Observación"
+                    val titleText = if (cleanTemp.isNotBlank()) "$symText ($cleanTemp °C)" else symText
                     onSave(
                         HealthRecord(
                             childId = child.id,
                             childName = child.name,
                             category = "SINTOMA_CASA",
-                            title = "$symText ($temperature °C)",
+                            title = titleText,
                             subtitle = "Registrado en casa",
                             dateText = "Hoy",
                             status = statusLabel,
-                            notes = homeNotes.ifBlank { "Temperatura: $temperature °C. Síntomas: $symText." }
+                            notes = homeNotes.trim().ifBlank {
+                                if (cleanTemp.isNotBlank()) "Temperatura: $cleanTemp °C. Síntomas: $symText."
+                                else "Síntomas observados: $symText."
+                            }
                         )
                     )
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = PequeBlue)
             ) {
-                Text("Guardar", color = Color.White)
+                Text("Guardar", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -1348,7 +1573,7 @@ fun ParentAddBabyDiaryDialog(
     onDismiss: () -> Unit,
     onSave: (HealthRecord) -> Unit
 ) {
-    var sleepHours by remember { mutableStateOf("10") }
+    var sleepHours by remember { mutableStateOf("") }
     var appetite by remember { mutableStateOf("Comió bien") }
     var mood by remember { mutableStateOf("Tranquilo") }
     var extraNotes by remember { mutableStateOf("") }
@@ -1384,6 +1609,7 @@ fun ParentAddBabyDiaryDialog(
                     value = sleepHours,
                     onValueChange = { sleepHours = it },
                     label = { Text("Horas de sueño") },
+                    placeholder = { Text("Ej. 10") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1391,7 +1617,8 @@ fun ParentAddBabyDiaryDialog(
                 OutlinedTextField(
                     value = extraNotes,
                     onValueChange = { extraNotes = it },
-                    label = { Text("Notas opcionales") },
+                    label = { Text("Notas de alimentación, sueño o pañales") },
+                    placeholder = { Text("Escribe cómo estuvo durante el día...") },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -1399,22 +1626,27 @@ fun ParentAddBabyDiaryDialog(
         confirmButton = {
             Button(
                 onClick = {
+                    val cleanSleep = sleepHours.trim()
+                    val sleepLabel = if (cleanSleep.isNotBlank()) "Sueño: ${cleanSleep}h · $appetite" else "Alimentación: $appetite"
                     onSave(
                         HealthRecord(
                             childId = child.id,
                             childName = child.name,
                             category = "DIARIO_BEBE",
-                            title = "Sueño: ${sleepHours}h · $appetite",
+                            title = sleepLabel,
                             subtitle = "Ánimo: $mood",
                             dateText = "Hoy",
                             status = "Normal",
-                            notes = extraNotes.ifBlank { "Alimentación: $appetite. Sueño: $sleepHours h." }
+                            notes = extraNotes.trim().ifBlank {
+                                if (cleanSleep.isNotBlank()) "Alimentación: $appetite. Sueño: $cleanSleep h."
+                                else "Alimentación: $appetite."
+                            }
                         )
                     )
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = PequeGreen)
             ) {
-                Text("Guardar", color = Color.White)
+                Text("Guardar", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -1447,12 +1679,14 @@ fun ParentAddDoubtDialog(
                     value = questionTitle,
                     onValueChange = { questionTitle = it },
                     label = { Text("Pregunta") },
+                    placeholder = { Text("¿Qué deseas preguntarle al pediatra?") },
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = questionDetail,
                     onValueChange = { questionDetail = it },
                     label = { Text("Detalles (opcional)") },
+                    placeholder = { Text("Contexto o detalles adicionales...") },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -1477,7 +1711,7 @@ fun ParentAddDoubtDialog(
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = PequeBlue)
             ) {
-                Text("Guardar", color = Color.White)
+                Text("Guardar", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -1510,12 +1744,14 @@ fun ParentUploadStudyDialog(
                     value = studyTitle,
                     onValueChange = { studyTitle = it },
                     label = { Text("Nombre del estudio o foto") },
+                    placeholder = { Text("Ej. Hemograma, Radiografía, Foto...") },
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = studyNotes,
                     onValueChange = { studyNotes = it },
-                    label = { Text("Observación") },
+                    label = { Text("Observación o resultados") },
+                    placeholder = { Text("Anota los resultados o comentarios...") },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -1540,7 +1776,7 @@ fun ParentUploadStudyDialog(
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = PequeBlue)
             ) {
-                Text("Subir", color = Color.White)
+                Text("Subir", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

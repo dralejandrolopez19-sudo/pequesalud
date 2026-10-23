@@ -73,6 +73,7 @@ import com.example.ui.screens.AiAssistantScreen
 import com.example.ui.screens.AuthFlowRoot
 import com.example.ui.screens.ChildProfileScreen
 import com.example.ui.screens.ClinicalModuleScreen
+import com.example.ui.screens.EmptyChildrenProfileState
 import com.example.ui.screens.MoreAndFullStructureScreen
 import com.example.ui.screens.ParentHomeDashboardScreen
 import com.example.ui.screens.ParentHomeTrackerScreen
@@ -394,7 +395,15 @@ fun PequeSaludAuthenticatedApp(
                                 onSelectChild = { viewModel.selectChild(it) },
                                 onAddChildClicked = { showAddChildDialog = true },
                                 onEditChild = { viewModel.updateChild(it) },
-                                onOpenVaccines = { subScreen = SubScreenDestination.Vaccines }
+                                onOpenVaccines = { subScreen = SubScreenDestination.Vaccines },
+                                onDeleteChild = {
+                                    viewModel.deleteChild(it)
+                                    subScreen = SubScreenDestination.None
+                                }
+                            )
+                        } else {
+                            EmptyChildrenProfileState(
+                                onAddChildClicked = { showAddChildDialog = true }
                             )
                         }
                     }
@@ -489,7 +498,8 @@ fun PequeSaludAuthenticatedApp(
                                         initialFilterIndex = parentTrackerFilterIndex,
                                         onSelectChild = { viewModel.selectChild(it) },
                                         onAddRecord = { viewModel.addRecord(it) },
-                                        onDeleteRecord = { viewModel.deleteRecord(it) }
+                                        onDeleteRecord = { viewModel.deleteRecord(it) },
+                                        onAddChildClicked = { showAddChildDialog = true }
                                     )
                                 }
 
@@ -517,7 +527,12 @@ fun PequeSaludAuthenticatedApp(
                                             onOpenVaccines = {
                                                 parentReadOnlySectionIndex = 1
                                                 bottomTab = 2
-                                            }
+                                            },
+                                            onDeleteChild = { viewModel.deleteChild(it) }
+                                        )
+                                    } else {
+                                        EmptyChildrenProfileState(
+                                            onAddChildClicked = { showAddChildDialog = true }
                                         )
                                     }
                                 }
@@ -550,7 +565,8 @@ fun PequeSaludAuthenticatedApp(
                                         pediatricianName = pediatricianProfile.name,
                                         currentPin = pediatricianPin,
                                         onRequestSwitchWorkspace = requestWorkspaceToggle,
-                                        onOpenPinSettings = openPinSettingsModal
+                                        onOpenPinSettings = openPinSettingsModal,
+                                        onClearAllData = { viewModel.clearAllData() }
                                     )
                                 }
                             }
@@ -568,6 +584,7 @@ fun PequeSaludAuthenticatedApp(
                                         onSelectChild = { viewModel.selectChild(it) },
                                         onAddChildClicked = { showAddChildDialog = true },
                                         onEditActiveChild = { viewModel.updateChild(it) },
+                                        onAddRecord = { viewModel.addRecord(it) },
                                         onReplyOrUpdateRecord = { id, status, notes, msg ->
                                             viewModel.replyOrUpdateRecord(id, status, notes, msg)
                                         },
@@ -580,6 +597,7 @@ fun PequeSaludAuthenticatedApp(
                                         pediatricianProfile = pediatricianProfile,
                                         children = children,
                                         activeChild = activeChild,
+                                        records = records,
                                         onSelectChild = { viewModel.selectChild(it) },
                                         onAddChildClicked = { showAddChildDialog = true },
                                         onEditActiveChild = { viewModel.updateChild(it) },
@@ -656,7 +674,8 @@ fun PequeSaludAuthenticatedApp(
                                         pediatricianName = pediatricianProfile.name,
                                         currentPin = pediatricianPin,
                                         onRequestSwitchWorkspace = requestWorkspaceToggle,
-                                        onOpenPinSettings = openPinSettingsModal
+                                        onOpenPinSettings = openPinSettingsModal,
+                                        onClearAllData = { viewModel.clearAllData() }
                                     )
                                 }
                             }

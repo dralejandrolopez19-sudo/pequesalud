@@ -27,7 +27,7 @@ class PequeSaludViewModel(
     private val currentUserId: String
 ) : ViewModel() {
 
-    private val _selectedChildId = MutableStateFlow("sofia_lopez")
+    private val _selectedChildId = MutableStateFlow("")
     val selectedChildId: StateFlow<String> = _selectedChildId.asStateFlow()
 
     private val _actionError = MutableStateFlow<String?>(null)
@@ -38,7 +38,9 @@ class PequeSaludViewModel(
 
     val childrenState: StateFlow<DataUiState<List<ChildProfile>>> = repository.observeChildren(currentUserId)
         .onEach { list ->
-            if (list.isNotEmpty() && list.none { it.id == _selectedChildId.value }) {
+            if (list.isEmpty()) {
+                _selectedChildId.value = ""
+            } else if (list.none { it.id == _selectedChildId.value }) {
                 _selectedChildId.value = list.first().id
             }
         }
@@ -68,9 +70,9 @@ class PequeSaludViewModel(
     init {
         viewModelScope.launch {
             try {
-                repository.seedInitialFamilyIfEmpty()
+                repository.purgePreseededDemoData()
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to seed initial family data", e)
+                Log.w(TAG, "Failed to purge demo data", e)
             }
         }
     }
@@ -89,7 +91,7 @@ class PequeSaludViewModel(
             val result = repository.createChild(profile)
             result.onSuccess { newId ->
                 _selectedChildId.value = newId
-                _actionMessage.value = "Perfil de ${profile.name} agregado correctamente"
+                _actionMessage.value = "Perfil de ${profile.name} registrado correctamente"
             }.onFailure { err ->
                 _actionError.value = err.localizedMessage ?: "No se pudo guardar el perfil"
             }
@@ -111,7 +113,7 @@ class PequeSaludViewModel(
         viewModelScope.launch {
             val result = repository.deleteChild(childId)
             result.onSuccess {
-                _actionMessage.value = "Perfil eliminado"
+                _actionMessage.value = "Perfil eliminado correctamente"
             }.onFailure { err ->
                 _actionError.value = err.localizedMessage ?: "No se pudo eliminar el perfil"
             }
@@ -170,6 +172,18 @@ class PequeSaludViewModel(
                 _actionMessage.value = "Registro eliminado"
             }.onFailure { err ->
                 _actionError.value = err.localizedMessage ?: "No se pudo eliminar el registro"
+            }
+        }
+    }
+
+    fun clearAllData() {
+        viewModelScope.launch {
+            val result = repository.clearAllUserData()
+            result.onSuccess {
+                _selectedChildId.value = ""
+                _actionMessage.value = "Expediente reiniciado en blanco, listo para ingresar nuevos datos"
+            }.onFailure { err ->
+                _actionError.value = err.localizedMessage ?: "No se pudieron limpiar los datos"
             }
         }
     }

@@ -587,20 +587,42 @@ fun PediatricianClinicalHeader(
             }
 
             Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                shape = if (children.isEmpty()) RoundedCornerShape(50) else CircleShape,
+                color = if (children.isEmpty()) PequeBlue else MaterialTheme.colorScheme.surface,
+                border = if (children.isEmpty()) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
                 modifier = Modifier
-                    .size(36.dp)
+                    .let { if (children.isEmpty()) it else it.size(36.dp) }
                     .clickable { onAddChildClicked() }
+                    .testTag("pediatrician_add_patient_button")
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Nuevo paciente",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
-                    )
+                if (children.isEmpty()) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Nuevo paciente",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Registrar nuevo paciente",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                } else {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Nuevo paciente",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }
@@ -674,10 +696,11 @@ fun PediatricianTriageAndPatientsScreen(
     onSelectChild: (String) -> Unit,
     onAddChildClicked: () -> Unit,
     onEditActiveChild: (ChildProfile) -> Unit,
+    onAddRecord: (HealthRecord) -> Unit,
     onReplyOrUpdateRecord: (String, String, String, String) -> Unit,
     onSwitchToParentMode: () -> Unit
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) } // 0=Síntomas, 1=Dudas, 2=Diario/Estudios
+    var selectedTab by remember { mutableIntStateOf(0) } // 0=Síntomas, 1=Dudas, 2=Diario/Estudios, 3=Indicaciones Enviadas
 
     val childRecords = remember(records, activeChild) {
         if (activeChild == null) emptyList()
@@ -687,15 +710,126 @@ fun PediatricianTriageAndPatientsScreen(
     val homeSymptoms = childRecords.filter { it.category == "SINTOMA_CASA" }
     val parentDoubts = childRecords.filter { it.category == "DUDA_PADRE" }
     val homeDiaryAndStudies = childRecords.filter { it.category == "DIARIO_BEBE" || it.category == "ESTUDIO_PADRE" }
+    val doctorIndications = childRecords.filter {
+        it.category in listOf("MEDICAMENTO", "CONSULTA", "CERTIFICADO") ||
+            it.notes.contains("| Respuesta", ignoreCase = true)
+    }
 
     val visibleRecords = when (selectedTab) {
         0 -> homeSymptoms
         1 -> parentDoubts
-        else -> homeDiaryAndStudies
+        2 -> homeDiaryAndStudies
+        else -> doctorIndications
     }
 
     var recordToReply by remember { mutableStateOf<HealthRecord?>(null) }
     var doctorReplyInput by remember { mutableStateOf("") }
+    var showDirectIndicationDialog by remember { mutableStateOf(false) }
+
+    if (showDirectIndicationDialog && activeChild != null) {
+        var indTitle by remember { mutableStateOf("") }
+        var indDetails by remember { mutableStateOf("") }
+        val quickPresets = listOf(
+            "Control térmico e hidratación en casa" to "Ofrecer líquidos fraccionados frecuentes, mantener ambiente fresco y vigilar temperatura cada 6 horas.",
+            "Plan de alimentación blanda y suero oral" to "Dieta astringente (arroz, manzana, guineo, pollo hervido) y suero de rehidratación oral tras cada evacuación.",
+            "Vigilar signos de alarma respiratoria" to "Lavados nasales con solución salina antes de dormir y comer. Acudir a consulta si hay tiraje intercostal o fiebre >38.5 °C.",
+            "Cuidados post-vacunación" to "Aplicar paños fríos en el sitio de punción si hay inflamación local. Administrar analgésico ponderal solo si presenta fiebre o dolor."
+        )
+
+        AlertDialog(
+            onDismissRequest = { showDirectIndicationDialog = false },
+            title = {
+                Text(
+                    text = "Nueva Indicación para Padres (${activeChild.name.substringBefore(" ")})",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Esta indicación aparecerá de inmediato en la tarjeta 'Indicaciones de tu pediatra' del Escritorio de Padres.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        quickPresets.forEach { (presetTitle, presetBody) ->
+                            FilterChip(
+                                selected = indTitle == presetTitle,
+                                onClick = {
+                                    indTitle = presetTitle
+                                    indDetails = presetBody
+                                },
+                                label = { Text(presetTitle.take(24) + "…") }
+                            )
+                        }
+                    }
+                    OutlinedTextField(
+                        value = indTitle,
+                        onValueChange = { indTitle = it },
+                        label = { Text("Título de la indicación") },
+                        placeholder = { Text("Ej. Control térmico, dieta blanda...") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("direct_indication_title_input")
+                    )
+                    OutlinedTextField(
+                        value = indDetails,
+                        onValueChange = { indDetails = it },
+                        label = { Text("Instrucciones detalladas para mamá y papá") },
+                        placeholder = { Text("Escribe las indicaciones claras que verán los padres en su escritorio...") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("direct_indication_notes_input")
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (indTitle.isNotBlank()) {
+                            onAddRecord(
+                                HealthRecord(
+                                    childId = activeChild.id,
+                                    childName = activeChild.name,
+                                    category = "CONSULTA",
+                                    title = indTitle.trim(),
+                                    subtitle = "Indicación de ${pediatricianProfile.name}",
+                                    dateText = "Hoy",
+                                    status = "Indicación activa",
+                                    notes = indDetails.trim().ifBlank { "Seguir indicaciones médicas en casa." }
+                                )
+                            )
+                            onEditActiveChild(
+                                activeChild.copy(
+                                    lastCheckupDate = "Hoy",
+                                    lastCheckupSummary = "${indTitle.trim()}: ${indDetails.trim().take(120)}"
+                                )
+                            )
+                            showDirectIndicationDialog = false
+                            selectedTab = 3
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PequeBlue),
+                    modifier = Modifier.testTag("confirm_send_indication_button")
+                ) {
+                    Text("Enviar a los Padres", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDirectIndicationDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
 
     if (recordToReply != null) {
         val target = recordToReply!!
@@ -719,7 +853,9 @@ fun PediatricianTriageAndPatientsScreen(
                         value = doctorReplyInput,
                         onValueChange = { doctorReplyInput = it },
                         label = { Text("Indicación del pediatra") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("doctor_reply_input")
                     )
                 }
             },
@@ -728,21 +864,31 @@ fun PediatricianTriageAndPatientsScreen(
                     onClick = {
                         if (doctorReplyInput.isNotBlank()) {
                             val baseNote = target.notes.substringBefore("|").trim()
-                            val combined = "$baseNote | Respuesta ${pediatricianProfile.name}: ${doctorReplyInput.trim()}"
-                            val nextStatus = if (target.category == "DUDA_PADRE") "Respondida" else "Revisado"
+                            val cleanReply = doctorReplyInput.trim()
+                            val combined = "$baseNote | Respuesta ${pediatricianProfile.name}: $cleanReply"
+                            val nextStatus = if (target.category == "DUDA_PADRE") "Respondida" else "Revisado por Pediatra"
                             onReplyOrUpdateRecord(
                                 target.id,
                                 nextStatus,
                                 combined,
-                                "Respuesta enviada a los padres"
+                                "Indicación enviada al Escritorio de Padres"
                             )
+                            if (activeChild != null) {
+                                onEditActiveChild(
+                                    activeChild.copy(
+                                        lastCheckupDate = "Hoy",
+                                        lastCheckupSummary = "Indicación Dr.: ${cleanReply.take(120)}"
+                                    )
+                                )
+                            }
                             recordToReply = null
                             doctorReplyInput = ""
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = PequeBlue)
+                    colors = ButtonDefaults.buttonColors(containerColor = PequeBlue),
+                    modifier = Modifier.testTag("confirm_doctor_reply_button")
                 ) {
-                    Text("Enviar", color = Color.White)
+                    Text("Enviar a los Padres", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -771,6 +917,28 @@ fun PediatricianTriageAndPatientsScreen(
             )
         }
 
+        // Botón rápido para enviar una indicación directa al Escritorio de Padres
+        if (activeChild != null) {
+            item {
+                Button(
+                    onClick = { showDirectIndicationDialog = true },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PequeBlue),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("send_direct_indication_button")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Enviar Indicación Médica a los Padres (${activeChild.name.substringBefore(" ")})",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
         item {
             Row(
                 modifier = Modifier
@@ -781,7 +949,8 @@ fun PediatricianTriageAndPatientsScreen(
                 listOf(
                     "Síntomas (${homeSymptoms.size})",
                     "Dudas (${parentDoubts.size})",
-                    "Diario y Estudios (${homeDiaryAndStudies.size})"
+                    "Diario y Estudios (${homeDiaryAndStudies.size})",
+                    "Indicaciones Enviadas (${doctorIndications.size})"
                 ).forEachIndexed { idx, label ->
                     FilterChip(
                         selected = selectedTab == idx,
@@ -801,7 +970,7 @@ fun PediatricianTriageAndPatientsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Sin reportes de casa en esta categoría para ${activeChild?.name ?: "este paciente"}.",
+                        text = "Sin registros en esta categoría para ${activeChild?.name ?: "este paciente"}.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(16.dp)
@@ -813,11 +982,11 @@ fun PediatricianTriageAndPatientsScreen(
                 val isAlert = rec.status.contains("Alerta", ignoreCase = true)
                 ClinicalParentInboxCard(
                     record = rec,
-                    badgeText = rec.status,
+                    badgeText = "${rec.category} · ${rec.status}",
                     badgeColor = if (isAlert) AlertRed else PequeBlue,
-                    actionLabel = "Responder",
+                    actionLabel = if (rec.notes.contains("| Respuesta")) "Actualizar indicación" else "Responder a padres",
                     onReplyClicked = {
-                        doctorReplyInput = ""
+                        doctorReplyInput = rec.notes.substringAfter("Respuesta ${pediatricianProfile.name}:", "").trim()
                         recordToReply = rec
                     }
                 )
@@ -897,6 +1066,7 @@ fun PediatricianConsultationAndDoseScreen(
     pediatricianProfile: PediatricianProfile,
     children: List<ChildProfile>,
     activeChild: ChildProfile?,
+    records: List<HealthRecord>,
     onSelectChild: (String) -> Unit,
     onAddChildClicked: () -> Unit,
     onEditActiveChild: (ChildProfile) -> Unit,
@@ -908,11 +1078,20 @@ fun PediatricianConsultationAndDoseScreen(
     var isGeneratingSoapDraft by remember { mutableStateOf(false) }
     val vitalRef = getPediatricVitalReference(activeChild?.ageYears ?: 5L)
 
-    // Signos vitales
-    var hrInput by remember { mutableStateOf("92") }
-    var rrInput by remember { mutableStateOf("22") }
-    var tempInput by remember { mutableStateOf("36.7") }
-    var spo2Input by remember { mutableStateOf("99") }
+    val childRecords = remember(records, activeChild) {
+        if (activeChild == null) emptyList()
+        else records.filter { it.childId == activeChild.id || it.childName == activeChild.name }
+    }
+    val childMeds = remember(childRecords) { childRecords.filter { it.category == "MEDICAMENTO" } }
+    val childConsultations = remember(childRecords) {
+        childRecords.filter { it.category == "CONSULTA" || it.category == "HISTORIAL" }
+    }
+
+    // Signos vitales (vacíos para captura directa)
+    var hrInput by remember { mutableStateOf("") }
+    var rrInput by remember { mutableStateOf("") }
+    var tempInput by remember { mutableStateOf("") }
+    var spo2Input by remember { mutableStateOf("") }
 
     val physicalExamChips = listOf(
         "Hidratado y activo",
@@ -923,7 +1102,7 @@ fun PediatricianConsultationAndDoseScreen(
         "Abdomen blando"
     )
     var selectedExamFindings by remember {
-        mutableStateOf(setOf("Hidratado y activo", "Murmullo vesicular normal", "Abdomen blando"))
+        mutableStateOf(emptySet<String>())
     }
     val cie10Presets = listOf(
         "Z00.1 - Control de niño sano",
@@ -932,13 +1111,14 @@ fun PediatricianConsultationAndDoseScreen(
         "H66.9 - Otitis media aguda",
         "A09 - Gastroenteritis aguda"
     )
-    var diagnosisCie10 by remember { mutableStateOf(cie10Presets.first()) }
+    var diagnosisCie10 by remember { mutableStateOf("") }
     var clinicalSoapNotes by remember { mutableStateOf("") }
 
     // Calculadora Farmacológica Ponderal (mg/kg -> mL)
     var selectedDrug by remember { mutableStateOf(pediatricDrugCatalog.first()) }
     var customWeightKg by remember(activeChild) {
-        mutableStateOf((activeChild?.weightKg ?: 20.0).toString())
+        val childW = activeChild?.weightKg ?: 0.0
+        mutableStateOf(if (childW > 0.0) childW.toString() else "")
     }
     var mgPerKgDose by remember(selectedDrug) {
         mutableStateOf(selectedDrug.defaultMgPerKgPerDose.toString())
@@ -950,7 +1130,7 @@ fun PediatricianConsultationAndDoseScreen(
         mutableStateOf(selectedDrug.defaultDays.toString())
     }
 
-    val weightNum = customWeightKg.toDoubleOrNull() ?: (activeChild?.weightKg ?: 20.0)
+    val weightNum = customWeightKg.toDoubleOrNull() ?: (activeChild?.weightKg ?: 0.0)
     val mgKgNum = mgPerKgDose.toDoubleOrNull() ?: selectedDrug.defaultMgPerKgPerDose
     val totalMgPerDose = weightNum * mgKgNum
     val exactMlPerDose = if (selectedDrug.mgPerMl > 0) totalMgPerDose / selectedDrug.mgPerMl else 0.0
@@ -1061,6 +1241,7 @@ fun PediatricianConsultationAndDoseScreen(
                                 value = customWeightKg,
                                 onValueChange = { customWeightKg = it },
                                 label = { Text("Peso (kg)") },
+                                placeholder = { Text("Ej. 14.5") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
@@ -1118,7 +1299,9 @@ fun PediatricianConsultationAndDoseScreen(
 
                         Button(
                             onClick = {
-                                if (activeChild != null) {
+                                if (activeChild == null) {
+                                    onAddChildClicked()
+                                } else {
                                     val doseText = if (selectedDrug.id.contains("gotas")) {
                                         "Dar $formattedMl mL ($formattedDrops gotas) cada $everyHours horas por $durationDays días"
                                     } else {
@@ -1133,7 +1316,14 @@ fun PediatricianConsultationAndDoseScreen(
                                             subtitle = doseText,
                                             dateText = "Por $durationDays días",
                                             status = "Activo",
-                                            notes = "${selectedDrug.parentFriendlyTip} · ($mgKgNum mg/kg para $weightNum kg)."
+                                            notes = "Indicado por ${pediatricianProfile.name}: ${selectedDrug.parentFriendlyTip} · ($mgKgNum mg/kg para $weightNum kg)."
+                                        )
+                                    )
+                                    onEditActiveChild(
+                                        activeChild.copy(
+                                            weightKg = if (weightNum > 0.0) weightNum else activeChild.weightKg,
+                                            lastCheckupDate = "Hoy",
+                                            lastCheckupSummary = "Receta: ${selectedDrug.name} · $doseText"
                                         )
                                     )
                                 }
@@ -1151,6 +1341,19 @@ fun PediatricianConsultationAndDoseScreen(
                             Text("Enviar Receta a los Padres", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
+                }
+            }
+
+            if (childMeds.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Recetas activas visibles en el Escritorio de Padres (${childMeds.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                itemsIndexed(childMeds, key = { idx, med -> "${med.id.ifBlank { "med_doc" }}_$idx" }) { _, med ->
+                    ClinicalRecordSimpleCard(med)
                 }
             }
         } else {
@@ -1175,6 +1378,7 @@ fun PediatricianConsultationAndDoseScreen(
                                 value = hrInput,
                                 onValueChange = { hrInput = it },
                                 label = { Text("FC lpm") },
+                                placeholder = { Text("92") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
@@ -1182,6 +1386,7 @@ fun PediatricianConsultationAndDoseScreen(
                                 value = rrInput,
                                 onValueChange = { rrInput = it },
                                 label = { Text("FR rpm") },
+                                placeholder = { Text("22") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
@@ -1189,6 +1394,7 @@ fun PediatricianConsultationAndDoseScreen(
                                 value = tempInput,
                                 onValueChange = { tempInput = it },
                                 label = { Text("Temp °C") },
+                                placeholder = { Text("36.7") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
@@ -1196,6 +1402,7 @@ fun PediatricianConsultationAndDoseScreen(
                                 value = spo2Input,
                                 onValueChange = { spo2Input = it },
                                 label = { Text("SpO₂ %") },
+                                placeholder = { Text("99") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
@@ -1245,6 +1452,7 @@ fun PediatricianConsultationAndDoseScreen(
                             value = diagnosisCie10,
                             onValueChange = { diagnosisCie10 = it },
                             label = { Text("Diagnóstico CIE-10") },
+                            placeholder = { Text("Escribe el diagnóstico o toca un código arriba...") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -1253,6 +1461,7 @@ fun PediatricianConsultationAndDoseScreen(
                             value = clinicalSoapNotes,
                             onValueChange = { clinicalSoapNotes = it },
                             label = { Text("Nota de Evolución y Plan (SOAP)") },
+                            placeholder = { Text("Escribe la evolución clínica y las indicaciones para los padres...") },
                             modifier = Modifier.fillMaxWidth()
                         )
 
@@ -1260,11 +1469,11 @@ fun PediatricianConsultationAndDoseScreen(
                             onClick = {
                                 if (!isGeneratingSoapDraft) {
                                     isGeneratingSoapDraft = true
-                                    val vitalsText = "FC: $hrInput lpm, FR: $rrInput rpm, Temp: $tempInput °C, SpO2: $spo2Input%"
-                                    val examSummary = selectedExamFindings.joinToString(", ")
+                                    val vitalsText = "FC: ${hrInput.ifBlank { "N/R" }} lpm, FR: ${rrInput.ifBlank { "N/R" }} rpm, Temp: ${tempInput.ifBlank { "N/R" }} °C, SpO2: ${spo2Input.ifBlank { "N/R" }}%"
+                                    val examSummary = selectedExamFindings.joinToString(", ").ifBlank { "Sin hallazgos patológicos" }
                                     clinicalSupportViewModel.generateSoapEvolutionDraft(
                                         child = activeChild,
-                                        diagnosisCie10 = diagnosisCie10,
+                                        diagnosisCie10 = diagnosisCie10.ifBlank { "Z00.1 - Control de niño sano" },
                                         vitalsText = vitalsText,
                                         examFindings = examSummary
                                     ) { draft ->
@@ -1288,28 +1497,37 @@ fun PediatricianConsultationAndDoseScreen(
 
                         Button(
                             onClick = {
-                                if (activeChild != null) {
-                                    val examSummary = selectedExamFindings.joinToString(", ")
-                                    val vitalsText = "FC: $hrInput lpm, FR: $rrInput rpm, Temp: $tempInput °C, SpO2: $spo2Input%"
+                                if (activeChild == null) {
+                                    onAddChildClicked()
+                                } else {
+                                    val cleanDiag = diagnosisCie10.trim().ifBlank { "Consulta Pediátrica" }
+                                    val examSummary = selectedExamFindings.joinToString(", ").ifBlank { "Exploración física general" }
+                                    val vitalsText = "FC: ${hrInput.ifBlank { "-" }} lpm, FR: ${rrInput.ifBlank { "-" }} rpm, Temp: ${tempInput.ifBlank { "-" }} °C, SpO2: ${spo2Input.ifBlank { "-" }}%"
+                                    val planSummary = clinicalSoapNotes.trim().ifBlank { "Seguir indicaciones médicas en casa." }
                                     onAddRecord(
                                         HealthRecord(
                                             childId = activeChild.id,
                                             childName = activeChild.name,
                                             category = "CONSULTA",
-                                            title = diagnosisCie10.trim(),
-                                            subtitle = "${pediatricianProfile.name} · Consulta",
+                                            title = cleanDiag,
+                                            subtitle = "${pediatricianProfile.name} · Plan e Indicaciones",
                                             dateText = "Hoy",
                                             status = "Completada",
-                                            notes = "Vitales: $vitalsText. | EF: $examSummary. | Plan: ${clinicalSoapNotes.ifBlank { "Control evolutivo." }}"
+                                            notes = "Vitales: $vitalsText. | EF: $examSummary. | Plan para Padres: $planSummary"
                                         )
                                     )
                                     onEditActiveChild(
                                         activeChild.copy(
                                             lastCheckupDate = "Hoy",
-                                            lastCheckupSummary = diagnosisCie10.trim()
+                                            lastCheckupSummary = "$cleanDiag · ${planSummary.take(120)}"
                                         )
                                     )
+                                    diagnosisCie10 = ""
                                     clinicalSoapNotes = ""
+                                    hrInput = ""
+                                    rrInput = ""
+                                    tempInput = ""
+                                    spo2Input = ""
                                 }
                             },
                             shape = RoundedCornerShape(50),
@@ -1320,9 +1538,22 @@ fun PediatricianConsultationAndDoseScreen(
                         ) {
                             Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Guardar Consulta", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("Guardar Consulta y Enviar Plan a Padres", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
+                }
+            }
+
+            if (childConsultations.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Consultas e Indicaciones Registradas (${childConsultations.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                itemsIndexed(childConsultations, key = { idx, con -> "${con.id.ifBlank { "con_doc" }}_$idx" }) { _, con ->
+                    ClinicalRecordSimpleCard(con)
                 }
             }
         }
@@ -1348,14 +1579,20 @@ fun PediatricianGrowthAndVaccinesScreen(
 ) {
     var selectedSubTab by remember { mutableIntStateOf(0) } // 0 = Somatometría, 1 = Vacunación PAI
 
-    var weightInput by remember(activeChild) { mutableStateOf((activeChild?.weightKg ?: 20.0).toString()) }
-    var heightInput by remember(activeChild) { mutableStateOf((activeChild?.heightCm ?: 115.0).toString()) }
-    var headCircInput by remember { mutableStateOf("49.5") }
+    var weightInput by remember(activeChild) {
+        val w = activeChild?.weightKg ?: 0.0
+        mutableStateOf(if (w > 0.0) w.toString() else "")
+    }
+    var heightInput by remember(activeChild) {
+        val h = activeChild?.heightCm ?: 0.0
+        mutableStateOf(if (h > 0.0) h.toString() else "")
+    }
+    var headCircInput by remember { mutableStateOf("") }
     var percentileChoice by remember { mutableStateOf("Percentil 50-75 OMS") }
 
-    var vaccineName by remember { mutableStateOf("Influenza Estacional") }
-    var vaccineDose by remember { mutableStateOf("Refuerzo anual") }
-    var vaccineLot by remember { mutableStateOf("LOTE-PAI-2026B") }
+    var vaccineName by remember { mutableStateOf("") }
+    var vaccineDose by remember { mutableStateOf("") }
+    var vaccineLot by remember { mutableStateOf("") }
 
     val childVaccines = remember(records, activeChild) {
         records.filter {
@@ -1400,10 +1637,10 @@ fun PediatricianGrowthAndVaccinesScreen(
 
         if (selectedSubTab == 0) {
             item {
-                val w = weightInput.toDoubleOrNull() ?: 20.0
-                val h = heightInput.toDoubleOrNull() ?: 115.0
+                val w = weightInput.toDoubleOrNull() ?: (activeChild?.weightKg ?: 0.0)
+                val h = heightInput.toDoubleOrNull() ?: (activeChild?.heightCm ?: 0.0)
                 val hm = (h / 100.0).coerceAtLeast(0.4)
-                val bmi = w / (hm * hm)
+                val bmi = if (w > 0.0 && h > 0.0) w / (hm * hm) else 0.0
                 val formattedBmi = String.format(Locale.US, "%.1f", bmi)
 
                 Surface(
@@ -1426,6 +1663,7 @@ fun PediatricianGrowthAndVaccinesScreen(
                                 value = weightInput,
                                 onValueChange = { weightInput = it },
                                 label = { Text("Peso (kg)") },
+                                placeholder = { Text("Ej. 14.5") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
@@ -1433,6 +1671,7 @@ fun PediatricianGrowthAndVaccinesScreen(
                                 value = heightInput,
                                 onValueChange = { heightInput = it },
                                 label = { Text("Talla (cm)") },
+                                placeholder = { Text("Ej. 98") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
@@ -1440,6 +1679,7 @@ fun PediatricianGrowthAndVaccinesScreen(
                                 value = headCircInput,
                                 onValueChange = { headCircInput = it },
                                 label = { Text("PC (cm)") },
+                                placeholder = { Text("Ej. 49.5") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
@@ -1462,20 +1702,30 @@ fun PediatricianGrowthAndVaccinesScreen(
 
                         Button(
                             onClick = {
-                                if (activeChild != null) {
+                                if (activeChild == null) {
+                                    onAddChildClicked()
+                                } else if (w > 0.0 || h > 0.0) {
+                                    val pcLabel = if (headCircInput.isNotBlank()) " · PC: $headCircInput cm" else ""
                                     onAddRecord(
                                         HealthRecord(
                                             childId = activeChild.id,
                                             childName = activeChild.name,
                                             category = "CRECIMIENTO",
-                                            title = "Peso: $w kg · Talla: $h cm · PC: $headCircInput cm",
+                                            title = "Peso: $w kg · Talla: $h cm$pcLabel",
                                             subtitle = "IMC: $formattedBmi kg/m² · $percentileChoice",
                                             dateText = "Hoy",
                                             status = "Percentil Normal",
                                             notes = "Evaluado por ${pediatricianProfile.name}."
                                         )
                                     )
-                                    onEditActiveChild(activeChild.copy(weightKg = w, heightCm = h))
+                                    onEditActiveChild(
+                                        activeChild.copy(
+                                            weightKg = w,
+                                            heightCm = h,
+                                            lastCheckupDate = "Hoy",
+                                            lastCheckupSummary = "Control crecimiento: $w kg, $h cm ($percentileChoice)"
+                                        )
+                                    )
                                 }
                             },
                             shape = RoundedCornerShape(50),
@@ -1485,6 +1735,23 @@ fun PediatricianGrowthAndVaccinesScreen(
                             Text("Guardar Medición", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
+                }
+            }
+
+            val childGrowthList = records.filter {
+                it.category == "CRECIMIENTO" &&
+                    (activeChild == null || it.childId == activeChild.id || it.childName == activeChild.name)
+            }
+            if (childGrowthList.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Historial de Somatometría (${childGrowthList.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                itemsIndexed(childGrowthList, key = { idx, gr -> "${gr.id.ifBlank { "grow_doc" }}_$idx" }) { _, gr ->
+                    ClinicalRecordSimpleCard(gr)
                 }
             }
         } else {
@@ -1523,6 +1790,7 @@ fun PediatricianGrowthAndVaccinesScreen(
                                 value = vaccineName,
                                 onValueChange = { vaccineName = it },
                                 label = { Text("Vacuna") },
+                                placeholder = { Text("Ej. SRP / Influenza") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
@@ -1530,25 +1798,39 @@ fun PediatricianGrowthAndVaccinesScreen(
                                 value = vaccineLot,
                                 onValueChange = { vaccineLot = it },
                                 label = { Text("Lote Oficial") },
+                                placeholder = { Text("Ej. LOTE-2026") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
                         }
+                        OutlinedTextField(
+                            value = vaccineDose,
+                            onValueChange = { vaccineDose = it },
+                            label = { Text("Dosis / Esquema") },
+                            placeholder = { Text("Ej. 1ra dosis, 2da dosis o Refuerzo anual") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                         Button(
                             onClick = {
-                                if (activeChild != null && vaccineName.isNotBlank()) {
+                                if (activeChild == null) {
+                                    onAddChildClicked()
+                                } else if (vaccineName.isNotBlank()) {
                                     onAddRecord(
                                         HealthRecord(
                                             childId = activeChild.id,
                                             childName = activeChild.name,
                                             category = "VACUNA",
                                             title = vaccineName.trim(),
-                                            subtitle = vaccineDose.trim(),
+                                            subtitle = vaccineDose.trim().ifBlank { "Dosis aplicada" },
                                             dateText = "Hoy",
                                             status = "Aplicada",
-                                            notes = "Lote: $vaccineLot · ${pediatricianProfile.name}."
+                                            notes = "Lote: ${vaccineLot.ifBlank { "Registro clínico" }} · ${pediatricianProfile.name}."
                                         )
                                     )
+                                    vaccineName = ""
+                                    vaccineDose = ""
+                                    vaccineLot = ""
                                 }
                             },
                             shape = RoundedCornerShape(50),
@@ -1623,21 +1905,15 @@ fun PediatricianClinicalSuiteScreen(
 ) {
     var selectedSection by remember { mutableIntStateOf(0) } // 0=Perinatal, 1=Neuro, 2=Certificados, 3=Módulos
 
-    var sdgInput by remember { mutableStateOf("39.0 SDG · Parto Eutócico") }
-    var apgarInput by remember { mutableStateOf("APGAR 9/10 · Peso: 3,250 g") }
-    var screeningsSummary by remember {
-        mutableStateOf("Tamiz Metabólico, Auditivo, Cardiológico, Visual y Cadera: Normales.")
-    }
+    var sdgInput by remember { mutableStateOf("") }
+    var apgarInput by remember { mutableStateOf("") }
+    var screeningsSummary by remember { mutableStateOf("") }
 
-    var neuroMilestoneTitle by remember { mutableStateOf("Neurodesarrollo Acorde a Edad") }
-    var neuroDetails by remember {
-        mutableStateOf("Motor grueso, fino, lenguaje y social normales. Sin signos de alarma.")
-    }
+    var neuroMilestoneTitle by remember { mutableStateOf("") }
+    var neuroDetails by remember { mutableStateOf("") }
 
-    var certType by remember { mutableStateOf("Certificado de Buena Salud Escolar") }
-    var certBody by remember(activeChild) {
-        mutableStateOf("Se certifica que ${activeChild?.name ?: "paciente"} se encuentra clínicamente sano(a) y con vacunas al día.")
-    }
+    var certType by remember { mutableStateOf("") }
+    var certBody by remember(activeChild) { mutableStateOf("") }
 
     val childRecords = remember(records, activeChild) {
         if (activeChild == null) emptyList()
@@ -1727,6 +2003,7 @@ fun PediatricianClinicalSuiteScreen(
                                 value = sdgInput,
                                 onValueChange = { sdgInput = it },
                                 label = { Text("SDG y Vía de Nacimiento") },
+                                placeholder = { Text("Ej. 39.0 SDG · Parto Eutócico / Cesárea") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -1734,6 +2011,7 @@ fun PediatricianClinicalSuiteScreen(
                                 value = apgarInput,
                                 onValueChange = { apgarInput = it },
                                 label = { Text("APGAR y Somatometría Neonatal") },
+                                placeholder = { Text("Ej. APGAR 9/10 · Peso: 3,250 g · Talla: 50 cm") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -1741,23 +2019,29 @@ fun PediatricianClinicalSuiteScreen(
                                 value = screeningsSummary,
                                 onValueChange = { screeningsSummary = it },
                                 label = { Text("Tamizajes Neonatales") },
+                                placeholder = { Text("Ej. Metabólico, Auditivo, Cardiológico, Visual y Cadera: Normales") },
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Button(
                                 onClick = {
-                                    if (activeChild != null) {
+                                    if (activeChild == null) {
+                                        onAddChildClicked()
+                                    } else if (sdgInput.isNotBlank() || apgarInput.isNotBlank() || screeningsSummary.isNotBlank()) {
                                         onAddRecord(
                                             HealthRecord(
                                                 childId = activeChild.id,
                                                 childName = activeChild.name,
                                                 category = "PERINATAL",
-                                                title = sdgInput,
-                                                subtitle = apgarInput,
+                                                title = sdgInput.ifBlank { "Antecedente Perinatal" },
+                                                subtitle = apgarInput.ifBlank { "Registro neonatal" },
                                                 dateText = "Perinatal",
                                                 status = "Normal",
-                                                notes = screeningsSummary
+                                                notes = screeningsSummary.ifBlank { "Tamizajes registrados." }
                                             )
                                         )
+                                        sdgInput = ""
+                                        apgarInput = ""
+                                        screeningsSummary = ""
                                     }
                                 },
                                 shape = RoundedCornerShape(50),
@@ -1787,7 +2071,8 @@ fun PediatricianClinicalSuiteScreen(
                             OutlinedTextField(
                                 value = neuroMilestoneTitle,
                                 onValueChange = { neuroMilestoneTitle = it },
-                                label = { Text("Etapa") },
+                                label = { Text("Etapa / Hito evaluado") },
+                                placeholder = { Text("Ej. Control de 6 meses / 12 meses / 2 años") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -1795,23 +2080,28 @@ fun PediatricianClinicalSuiteScreen(
                                 value = neuroDetails,
                                 onValueChange = { neuroDetails = it },
                                 label = { Text("Hitos observados") },
+                                placeholder = { Text("Ej. Motor grueso, fino, lenguaje y social acordes a la edad...") },
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Button(
                                 onClick = {
-                                    if (activeChild != null) {
+                                    if (activeChild == null) {
+                                        onAddChildClicked()
+                                    } else if (neuroMilestoneTitle.isNotBlank() || neuroDetails.isNotBlank()) {
                                         onAddRecord(
                                             HealthRecord(
                                                 childId = activeChild.id,
                                                 childName = activeChild.name,
                                                 category = "NEURODESARROLLO",
-                                                title = neuroMilestoneTitle,
+                                                title = neuroMilestoneTitle.ifBlank { "Evaluación de Neurodesarrollo" },
                                                 subtitle = pediatricianProfile.name,
                                                 dateText = "Hoy",
                                                 status = "Acorde a edad",
-                                                notes = neuroDetails
+                                                notes = neuroDetails.ifBlank { "Sin signos de alarma." }
                                             )
                                         )
+                                        neuroMilestoneTitle = ""
+                                        neuroDetails = ""
                                     }
                                 },
                                 shape = RoundedCornerShape(50),
@@ -1838,10 +2128,35 @@ fun PediatricianClinicalSuiteScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("Emitir Certificado o Interconsulta", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf(
+                                    "Certificado de Buena Salud Escolar",
+                                    "Constancia de Aptitud Física",
+                                    "Justificante de Asistencia Médica",
+                                    "Referimiento a Subespecialidad"
+                                ).forEach { preset ->
+                                    FilterChip(
+                                        selected = certType == preset,
+                                        onClick = {
+                                            certType = preset
+                                            if (certBody.isBlank()) {
+                                                certBody = "Se hace constar que ${activeChild?.name ?: "el/la paciente"} fue evaluado(a) clínicamente encontrándose en adecuadas condiciones de salud."
+                                            }
+                                        },
+                                        label = { Text(preset) }
+                                    )
+                                }
+                            }
                             OutlinedTextField(
                                 value = certType,
                                 onValueChange = { certType = it },
                                 label = { Text("Tipo de Documento") },
+                                placeholder = { Text("Ej. Certificado Escolar, Referimiento...") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -1849,23 +2164,28 @@ fun PediatricianClinicalSuiteScreen(
                                 value = certBody,
                                 onValueChange = { certBody = it },
                                 label = { Text("Contenido") },
+                                placeholder = { Text("Escribe el texto del certificado o interconsulta...") },
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Button(
                                 onClick = {
-                                    if (activeChild != null) {
+                                    if (activeChild == null) {
+                                        onAddChildClicked()
+                                    } else if (certType.isNotBlank() || certBody.isNotBlank()) {
                                         onAddRecord(
                                             HealthRecord(
                                                 childId = activeChild.id,
                                                 childName = activeChild.name,
                                                 category = "CERTIFICADO",
-                                                title = certType,
+                                                title = certType.ifBlank { "Certificado Pediátrico" },
                                                 subtitle = "${pediatricianProfile.name} · ${pediatricianProfile.licenseId}",
                                                 dateText = "Hoy",
                                                 status = "Emitido",
-                                                notes = certBody
+                                                notes = certBody.ifBlank { "Documento médico oficial." }
                                             )
                                         )
+                                        certType = ""
+                                        certBody = ""
                                     }
                                 },
                                 shape = RoundedCornerShape(50),
