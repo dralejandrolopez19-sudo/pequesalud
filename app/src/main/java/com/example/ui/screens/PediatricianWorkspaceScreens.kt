@@ -1224,12 +1224,6 @@ fun PediatricianTriageAndPatientsScreen(
             )
         }
 
-        item {
-            HybridPwaQuickBannerCard(
-                onOpenHybridPwaHub = onOpenHybridPwaHub
-            )
-        }
-
         if (activeChild != null) {
             // Resumen Ejecutivo de Guardia y Triaje (4 KPIs interactivos)
             item {

@@ -497,13 +497,6 @@ fun ParentHomeDashboardScreen(
             }
         }
 
-        // Acceso rápido a la Arquitectura Mixta (PWA GitHub Pages + Visor Híbrido)
-        item {
-            HybridPwaQuickBannerCard(
-                onOpenHybridPwaHub = onOpenHybridPwaHub
-            )
-        }
-
         // 2. Selector de Hijos + Tarjeta Hero del Paciente Activo
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

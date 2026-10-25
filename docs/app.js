@@ -602,27 +602,19 @@ function renderApp() {
   const switchBtn = document.getElementById("switchWorkspaceBtn");
 
   if (isPediatrician) {
-    badgeEl.textContent = "ESTACIÓN CLÍNICA DEL PEDIATRA";
+    badgeEl.textContent = "CONSULTORIO PEDIÁTRICO";
     badgeEl.className = "workspace-tag pediatrician";
-    titleEl.textContent = "Dr. Alejandro López • Consultorio Pediátrico";
-    subEl.textContent = "Triaje clínico, evolución SOAP, curvas OMS (P3-P97), dosis mg/kg y alertas push";
-    switchBtn.textContent = "🏡 Volver al Escritorio de Padres";
+    titleEl.textContent = "Dr. Alejandro López";
+    subEl.textContent = "Triaje, evolución SOAP, curvas OMS y dosis ponderales";
+    switchBtn.textContent = "🏡 Vista Padres";
     switchBtn.className = "btn btn-soft-green";
   } else {
     badgeEl.textContent = "ESCRITORIO DE PADRES";
     badgeEl.className = "workspace-tag parent";
-    titleEl.textContent = "PequeSalud Familiar";
-    subEl.textContent = "Cuidado diario de tus hijos, vacunas PAI, síntomas en casa y avisos del pediatra";
-    switchBtn.textContent = "🩺 Modo Pediatra (PIN)";
+    titleEl.textContent = "PequeSalud";
+    subEl.textContent = "Salud infantil, vacunas PAI y curvas de crecimiento";
+    switchBtn.textContent = "🩺 Modo Pediatra";
     switchBtn.className = "btn btn-soft-blue";
-  }
-
-  // Actualizar puente/estado
-  const bridgeBadge = document.getElementById("archBridgeBadge");
-  if (bridgeBadge) {
-    bridgeBadge.textContent = state.isAndroidWebView
-      ? "📱 Visor Híbrido Android + PWA Conectado"
-      : "🌐 PWA Instalable (GitHub Pages + Firebase)";
   }
 
   renderChildSelector(activeChild);
@@ -1079,45 +1071,62 @@ function renderPediatricianWorkspace(container, child, records) {
 }
 
 // ============================================================================
-// PESTAÑA 3: Hub de Arquitectura Mixta (PWA GitHub Pages + Android Nativo + Firebase)
+// PESTAÑA 3: Ficha Médica Familiar y Expediente Completo
 // ============================================================================
 function renderHybridArchitectureTab(container, child) {
+  const childRecords = state.records.filter(
+    (r) => r.childId === child.id || r.childName === child.name
+  );
+  const code = computeFamilyCode(child);
+  const hasAllergy = child.allergies && !child.allergies.toLowerCase().includes("ninguna");
+
   container.innerHTML = `
     <div class="card">
       <div class="card-header">
         <div>
-          <span class="workspace-tag pediatrician">ARQUITECTURA MIXTA: ANDROID NATIVO + PWA GITHUB PAGES</span>
-          <h2 class="card-title" style="margin-top:4px;">🌐 Centro de Sincronización Multiplataforma y Despliegue Web</h2>
+          <h2 class="card-title">👶 Ficha Médica de ${child.name}</h2>
+          <p class="card-subtitle">Código familiar ${code} • Pediatra: ${child.pediatrician || "Dr. Alejandro López"}</p>
         </div>
-      </div>
-      <p style="font-size:0.88rem; margin-bottom:14px;">
-        PequeSalud opera bajo una <strong>Arquitectura Mixta</strong>: la aplicación Android nativa (Jetpack Compose) y esta Progressive Web App (PWA) comparten el mismo modelo clínico, curvas OMS y base de datos en tiempo real <strong>Firebase Firestore</strong> más almacenamiento local offline.
-      </p>
-
-      <div class="grid-3">
-        <div style="background:var(--bg-cream); padding:14px; border-radius:14px; border:1px solid var(--border-color);">
-          <div style="font-weight:800; font-size:0.9rem; margin-bottom:4px;">1. Carpeta Lista para GitHub Pages</div>
-          <p style="font-size:0.78rem; color:var(--text-secondary);">
-            Ubicada en <code>/docs</code> con <code>index.html</code>, <code>manifest.webmanifest</code>, <code>sw.js</code> y <code>.nojekyll</code> para publicar en 1 clic desde la rama principal.
-          </p>
-        </div>
-        <div style="background:var(--bg-cream); padding:14px; border-radius:14px; border:1px solid var(--border-color);">
-          <div style="font-weight:800; font-size:0.9rem; margin-bottom:4px;">2. Base Firebase Compartida</div>
-          <p style="font-size:0.78rem; color:var(--text-secondary);">
-            Sincroniza colecciones <code>/users/{uid}/children</code> y <code>/users/{uid}/records</code> con reglas de seguridad aisladas por familia.
-          </p>
-        </div>
-        <div style="background:var(--bg-cream); padding:14px; border-radius:14px; border:1px solid var(--border-color);">
-          <div style="font-weight:800; font-size:0.9rem; margin-bottom:4px;">3. Modo Offline + Instalable</div>
-          <p style="font-size:0.78rem; color:var(--text-secondary);">
-            Service Worker con caché <em>Stale-While-Revalidate</em> y respaldo en <code>localStorage</code> para consultar el carnet sin internet.
-          </p>
-        </div>
+        <button id="exportJsonBackupBtn" class="btn btn-outline">⬇️ Descargar Respaldo</button>
       </div>
 
-      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
-        <button id="exportJsonBackupBtn" class="btn btn-soft-blue">⬇️ Exportar Respaldo Clínico JSON (${state.children.length} hijos, ${state.records.length} registros)</button>
-        <button id="syncWithAndroidBridgeBtn" class="btn btn-safe">🔄 Sincronizar Ahora</button>
+      <div class="grid-3" style="margin-bottom:0;">
+        <div style="background:var(--bg-cream); padding:12px 14px; border-radius:12px; border:1px solid var(--border-color);">
+          <div style="font-size:0.75rem; color:var(--text-secondary); font-weight:700;">Edad y Sexo</div>
+          <div style="font-weight:800; font-size:0.95rem; margin-top:2px;">${child.ageYears} años • ${child.gender}</div>
+        </div>
+        <div style="background:var(--bg-cream); padding:12px 14px; border-radius:12px; border:1px solid var(--border-color);">
+          <div style="font-size:0.75rem; color:var(--text-secondary); font-weight:700;">Grupo Sanguíneo y Peso</div>
+          <div style="font-weight:800; font-size:0.95rem; margin-top:2px;">Grupo ${child.bloodType || "O+"} • ${child.weightKg} kg • ${child.heightCm} cm</div>
+        </div>
+        <div style="background:${hasAllergy ? "var(--alert-red-soft)" : "var(--bg-cream)"}; padding:12px 14px; border-radius:12px; border:1px solid var(--border-color);">
+          <div style="font-size:0.75rem; color:${hasAllergy ? "var(--alert-red)" : "var(--text-secondary)"}; font-weight:700;">Alergias Conocidas</div>
+          <div style="font-weight:800; font-size:0.95rem; color:${hasAllergy ? "var(--alert-red)" : "var(--text-primary)"}; margin-top:2px;">${child.allergies || "Ninguna"}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title" style="margin-bottom:10px;">📋 Línea de Tiempo Clínica (${childRecords.length})</h3>
+      <div class="record-list">
+        ${
+          childRecords.length === 0
+            ? `<p style="font-size:0.85rem; color:var(--text-secondary);">Sin registros en el expediente.</p>`
+            : childRecords
+                .map(
+                  (r) => `
+                <div class="record-item">
+                  <div>
+                    <div style="font-weight:800; font-size:0.9rem;">${r.title}</div>
+                    <div style="font-size:0.76rem; color:var(--text-secondary);">${r.category} • ${r.subtitle} • ${r.dateText}</div>
+                    ${r.notes ? `<div style="font-size:0.82rem; margin-top:4px;">${r.notes}</div>` : ""}
+                  </div>
+                  <span class="record-badge ${r.status.includes("Aplicada") || r.status.includes("Normal") || r.status.includes("Completada") ? "applied" : "pending"}">${r.status}</span>
+                </div>
+              `
+                )
+                .join("")
+        }
       </div>
     </div>
   `;
@@ -1130,16 +1139,16 @@ function renderBottomNavigation(isPediatrician) {
   const modeClass = isPediatrician ? "pediatrician-mode" : "parent-mode";
   const items = isPediatrician
     ? [
-        { idx: 0, icon: "🚨", label: "Triaje y Push" },
-        { idx: 1, icon: "🧮", label: "SOAP y Dosis" },
+        { idx: 0, icon: "🚨", label: "Triaje" },
+        { idx: 1, icon: "🧮", label: "Consulta" },
         { idx: 2, icon: "📊", label: "Curvas OMS" },
-        { idx: 3, icon: "🌐", label: "PWA / Cloud" }
+        { idx: 3, icon: "📋", label: "Expediente" }
       ]
     : [
-        { idx: 0, icon: "🏡", label: "Inicio y OMS" },
-        { idx: 1, icon: "📝", label: "Bitácora Casa" },
-        { idx: 2, icon: "💉", label: "Vacunas PAI" },
-        { idx: 3, icon: "🌐", label: "PWA / Cloud" }
+        { idx: 0, icon: "🏡", label: "Inicio" },
+        { idx: 1, icon: "📝", label: "Bitácora" },
+        { idx: 2, icon: "💉", label: "Vacunas" },
+        { idx: 3, icon: "👶", label: "Ficha" }
       ];
 
   nav.innerHTML = items
@@ -1547,13 +1556,11 @@ async function initFirebaseWebSdk() {
     const authBtn = document.getElementById("authActionBtn");
     onAuthStateChanged(auth, (user) => {
       state.firebaseUser = user;
-      const syncLabel = document.getElementById("syncStatusLabel");
       if (user) {
         if (authBtn) authBtn.textContent = `☁️ ${user.displayName?.split(" ")[0] || "Conectado"}`;
-        if (syncLabel) syncLabel.textContent = `Firebase Cloud: ${user.email || "Sincronizado"}`;
         subscribeToFirestoreUserCollections(db, user.uid, firestoreMod);
       } else {
-        if (authBtn) authBtn.textContent = "🔐 Conectar Google Cloud";
+        if (authBtn) authBtn.textContent = "☁️ Sincronizar";
       }
     });
 

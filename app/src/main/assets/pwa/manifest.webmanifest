@@ -1,7 +1,7 @@
 {
-  "name": "PequeSalud — Expediente Pediátrico y Curvas OMS (PWA)",
+  "name": "PequeSalud",
   "short_name": "PequeSalud",
-  "description": "Plataforma pediátrica de arquitectura mixta (Android + PWA) con Escritorio de Padres, Estación Clínica del Pediatra, Curvas OMS (P3-P97), Calculadora mg/kg y Sincronización Firebase + Offline.",
+  "description": "Salud pediátrica y familiar: Escritorio de Padres, Consultorio del Pediatra, Curvas OMS y Vacunas PAI.",
   "lang": "es-DO",
   "start_url": "./index.html",
   "scope": "./",
@@ -22,6 +22,22 @@
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Escritorio de Padres",
+      "short_name": "Padres",
+      "description": "Abrir resumen familiar, vacunas y síntomas en casa",
+      "url": "./index.html?mode=parent",
+      "icons": [{ "src": "./icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Consultorio Pediatra",
+      "short_name": "Pediatra",
+      "description": "Abrir consultorio clínico SOAP, curvas OMS y calculadora mg/kg",
+      "url": "./index.html?mode=pediatrician",
+      "icons": [{ "src": "./icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" }]
     }
   ]
 }

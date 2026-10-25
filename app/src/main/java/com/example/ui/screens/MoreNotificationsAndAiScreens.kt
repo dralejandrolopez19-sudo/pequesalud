@@ -678,11 +678,11 @@ fun MoreAndFullStructureScreen(
 
     val structureCards = listOf(
         FullStructureCardData(
-            title = "PWA y GitHub Pages",
+            title = "Versión Web (PWA)",
             icon = Icons.Default.CloudDone,
             iconBg = PequeBlue,
             cardBg = Color(0xFFF0F6FF),
-            bullets = listOf("Arquitectura Mixta + Offline", "Escritorio Padres y Pediatra", "Curvas OMS en Web"),
+            bullets = listOf("Vista web instalable", "Escritorio Padres y Pediatra", "Curvas OMS"),
             onClick = onOpenHybridPwaHub
         ),
         FullStructureCardData(
@@ -814,13 +814,6 @@ fun MoreAndFullStructureScreen(
                 currentPin = currentPin,
                 onRequestSwitchMode = onRequestSwitchWorkspace,
                 onOpenPinSettings = onOpenPinSettings
-            )
-        }
-
-        // Tarjeta destacada de Arquitectura Mixta (Android Nativo + PWA GitHub Pages)
-        item {
-            HybridPwaQuickBannerCard(
-                onOpenHybridPwaHub = onOpenHybridPwaHub
             )
         }
 
