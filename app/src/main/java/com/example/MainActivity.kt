@@ -68,12 +68,14 @@ import com.example.data.WorkspaceMode
 import com.example.data.configureAppCheck
 import com.example.ui.DataUiState
 import com.example.ui.PequeSaludViewModel
+import com.example.ui.components.PediatricPushPermissionAndRealtimeObserver
 import com.example.ui.screens.AddOrEditChildDialog
 import com.example.ui.screens.AiAssistantScreen
 import com.example.ui.screens.AuthFlowRoot
 import com.example.ui.screens.ChildProfileScreen
 import com.example.ui.screens.ClinicalModuleScreen
 import com.example.ui.screens.EmptyChildrenProfileState
+import com.example.ui.screens.HybridPwaArchitectureScreen
 import com.example.ui.screens.MoreAndFullStructureScreen
 import com.example.ui.screens.ParentHomeDashboardScreen
 import com.example.ui.screens.ParentHomeTrackerScreen
@@ -145,6 +147,7 @@ sealed interface SubScreenDestination {
     data object Vaccines : SubScreenDestination
     data class Module(val module: ClinicalModule) : SubScreenDestination
     data object AiAssistant : SubScreenDestination
+    data object HybridPwaHub : SubScreenDestination
 }
 
 @Composable
@@ -254,6 +257,8 @@ fun PequeSaludAuthenticatedApp(
     val activeChild = children.find { it.id == selectedChildId } ?: children.firstOrNull()
 
     val isPediatricianMode = workspaceMode == WorkspaceMode.PEDIATRICIAN
+
+    PediatricPushPermissionAndRealtimeObserver(records = records)
 
     val requestWorkspaceToggle: () -> Unit = {
         if (workspaceMode == WorkspaceMode.PEDIATRICIAN) {
@@ -459,6 +464,18 @@ fun PequeSaludAuthenticatedApp(
                         )
                     }
 
+                    is SubScreenDestination.HybridPwaHub -> {
+                        HybridPwaArchitectureScreen(
+                            children = children,
+                            records = records,
+                            selectedChildId = selectedChildId,
+                            isPediatricianMode = isPediatricianMode,
+                            onBack = { subScreen = SubScreenDestination.None },
+                            onAddChild = { viewModel.addChild(it) },
+                            onAddRecord = { viewModel.addRecord(it) }
+                        )
+                    }
+
                     is SubScreenDestination.None -> {
                         if (!isPediatricianMode) {
                             // =========================================================================
@@ -473,6 +490,7 @@ fun PequeSaludAuthenticatedApp(
                                         records = records,
                                         onSelectChild = { viewModel.selectChild(it) },
                                         onAddChildClicked = { showAddChildDialog = true },
+                                        onEditActiveChild = { viewModel.updateChild(it) },
                                         onAddRecord = { viewModel.addRecord(it) },
                                         onOpenTrackerWithFilter = { filterIdx ->
                                             parentTrackerFilterIndex = filterIdx
@@ -486,7 +504,18 @@ fun PequeSaludAuthenticatedApp(
                                             subScreen = SubScreenDestination.AiAssistant
                                         },
                                         onRequestPediatricianMode = requestWorkspaceToggle,
-                                        onOpenPinSettings = openPinSettingsModal
+                                        onOpenPinSettings = openPinSettingsModal,
+                                        onConfirmPushNotification = { pushRec ->
+                                            viewModel.replyOrUpdateRecord(
+                                                pushRec.id,
+                                                "Confirmado por padres",
+                                                pushRec.notes,
+                                                "Confirmación de aviso enviada al pediatra"
+                                            )
+                                        },
+                                        onOpenHybridPwaHub = {
+                                            subScreen = SubScreenDestination.HybridPwaHub
+                                        }
                                     )
                                 }
 
@@ -566,7 +595,10 @@ fun PequeSaludAuthenticatedApp(
                                         currentPin = pediatricianPin,
                                         onRequestSwitchWorkspace = requestWorkspaceToggle,
                                         onOpenPinSettings = openPinSettingsModal,
-                                        onClearAllData = { viewModel.clearAllData() }
+                                        onClearAllData = { viewModel.clearAllData() },
+                                        onOpenHybridPwaHub = {
+                                            subScreen = SubScreenDestination.HybridPwaHub
+                                        }
                                     )
                                 }
                             }
@@ -588,7 +620,14 @@ fun PequeSaludAuthenticatedApp(
                                         onReplyOrUpdateRecord = { id, status, notes, msg ->
                                             viewModel.replyOrUpdateRecord(id, status, notes, msg)
                                         },
-                                        onSwitchToParentMode = requestWorkspaceToggle
+                                        onSwitchToParentMode = requestWorkspaceToggle,
+                                        onNavigateStation = { stationIdx -> bottomTab = stationIdx },
+                                        onOpenAiAssistant = {
+                                            subScreen = SubScreenDestination.AiAssistant
+                                        },
+                                        onOpenHybridPwaHub = {
+                                            subScreen = SubScreenDestination.HybridPwaHub
+                                        }
                                     )
                                 }
 
@@ -675,7 +714,10 @@ fun PequeSaludAuthenticatedApp(
                                         currentPin = pediatricianPin,
                                         onRequestSwitchWorkspace = requestWorkspaceToggle,
                                         onOpenPinSettings = openPinSettingsModal,
-                                        onClearAllData = { viewModel.clearAllData() }
+                                        onClearAllData = { viewModel.clearAllData() },
+                                        onOpenHybridPwaHub = {
+                                            subScreen = SubScreenDestination.HybridPwaHub
+                                        }
                                     )
                                 }
                             }

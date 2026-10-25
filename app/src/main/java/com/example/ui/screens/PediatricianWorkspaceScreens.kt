@@ -33,8 +33,14 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.Medication
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -59,10 +65,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.ChildProfile
@@ -73,6 +83,12 @@ import com.example.data.getPediatricVitalReference
 import com.example.data.pediatricDrugCatalog
 import com.example.ui.AiAssistantViewModel
 import com.example.ui.components.ChildAvatar
+import com.example.ui.components.FeverThermalCurveCard
+import com.example.ui.components.PediatricNotificationManager
+import com.example.ui.components.PediatricPdfAndShareHelper
+import com.example.ui.components.SendPediatricPushNotificationDialog
+import com.example.ui.components.TannerTargetHeightCalculatorCard
+import com.example.ui.components.WhoGrowthChartCard
 import com.example.ui.theme.AlertRed
 import com.example.ui.theme.CardAiIcon
 import com.example.ui.theme.PequeBlue
@@ -80,6 +96,27 @@ import com.example.ui.theme.PequeGreen
 import com.example.ui.theme.PequeOrange
 import com.example.ui.theme.PequePurple
 import java.util.Locale
+import kotlin.math.sqrt
+
+/**
+ * Calcula requerimiento hídrico basal por fórmula de Holliday-Segar (mL/día).
+ */
+private fun calculateHollidaySegarDailyMl(weightKg: Double): Double {
+    if (weightKg <= 0.0) return 0.0
+    return when {
+        weightKg <= 10.0 -> weightKg * 100.0
+        weightKg <= 20.0 -> 1000.0 + (weightKg - 10.0) * 50.0
+        else -> 1500.0 + (weightKg - 20.0) * 20.0
+    }
+}
+
+/**
+ * Calcula Superficie Corporal por fórmula de Mosteller (m²).
+ */
+private fun calculateMostellerBsa(weightKg: Double, heightCm: Double): Double {
+    if (weightKg <= 0.0 || heightCm <= 0.0) return 0.0
+    return sqrt((weightKg * heightCm) / 3600.0)
+}
 
 @Composable
 fun PediatricianPinDialog(
@@ -447,7 +484,7 @@ fun PediatricianPinDialog(
 }
 
 /**
- * Cabecera Clínica Minimalista del Pediatra.
+ * Cabecera Clínica Ejecutiva del Pediatra con Ficha de Telemetría del Paciente Activo.
  */
 @Composable
 fun PediatricianClinicalHeader(
@@ -484,24 +521,49 @@ fun PediatricianClinicalHeader(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Fila 1: Título clínico + botón Vista Padres
+        // Fila 1: Identidad clínica del especialista + botón Vista Padres
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = pediatricianProfile.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "Estación Pediátrica · ${pediatricianProfile.licenseId}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = PequeBlue.copy(alpha = 0.14f),
+                    border = BorderStroke(1.dp, PequeBlue.copy(alpha = 0.35f)),
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.MedicalServices,
+                            contentDescription = null,
+                            tint = PequeBlue,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = pediatricianProfile.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${pediatricianProfile.specialty} · ${pediatricianProfile.licenseId}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             Surface(
@@ -536,7 +598,7 @@ fun PediatricianClinicalHeader(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Buscar paciente o código PEQUE-...") },
+                placeholder = { Text("Buscar paciente, alergia o código PEQUE-...") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
@@ -546,7 +608,7 @@ fun PediatricianClinicalHeader(
             )
         }
 
-        // Selector horizontal minimalista de pacientes
+        // Selector horizontal de pacientes activos
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -627,56 +689,193 @@ fun PediatricianClinicalHeader(
             }
         }
 
-        // Banda compacta de datos clínicos esenciales
+        // Ficha Clínica Ejecutiva del Paciente Activo
         if (activeChild != null) {
             val heightMeters = (activeChild.heightCm / 100.0).coerceAtLeast(0.5)
-            val bmi = activeChild.weightKg / (heightMeters * heightMeters)
+            val bmi = if (activeChild.weightKg > 0 && activeChild.heightCm > 0) {
+                activeChild.weightKg / (heightMeters * heightMeters)
+            } else {
+                0.0
+            }
             val hasAllergy = !activeChild.allergies.equals("Ninguna", ignoreCase = true) &&
-                !activeChild.allergies.contains("Ninguna", ignoreCase = true)
+                !activeChild.allergies.contains("Ninguna", ignoreCase = true) &&
+                activeChild.allergies.isNotBlank()
 
             Surface(
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surface,
                 border = BorderStroke(
-                    1.dp,
-                    if (hasAllergy) AlertRed.copy(alpha = 0.4f)
-                    else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    1.2.dp,
+                    if (hasAllergy) AlertRed.copy(alpha = 0.45f)
+                    else PequeBlue.copy(alpha = 0.30f)
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "${activeChild.name} · ${activeChild.familyLinkCode()} · Grupo ${activeChild.bloodType}",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(
+                                    PequeBlue.copy(alpha = 0.08f),
+                                    MaterialTheme.colorScheme.surface
+                                )
+                            )
                         )
-                        Text(
-                            text = "${activeChild.weightKg} kg · ${activeChild.heightCm} cm · IMC ${
-                                String.format(Locale.US, "%.1f", bmi)
-                            } · Alergia: ${activeChild.allergies}",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = if (hasAllergy) FontWeight.Bold else FontWeight.Normal,
-                            color = if (hasAllergy) AlertRed else MaterialTheme.colorScheme.onSurfaceVariant
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            ChildAvatar(
+                                name = activeChild.name,
+                                gender = activeChild.gender,
+                                colorHex = activeChild.avatarColorHex,
+                                size = 46.dp
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = activeChild.name,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "${activeChild.ageYears} años · ${activeChild.familyLinkCode()} · Grupo ${activeChild.bloodType}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        val context = LocalContext.current
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                onClick = {
+                                    PediatricPdfAndShareHelper.generateAndShareFullDossierPdf(
+                                        context = context,
+                                        child = activeChild,
+                                        records = emptyList(),
+                                        doctorName = pediatricianProfile.name
+                                    )
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                color = PequeBlue.copy(alpha = 0.12f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PictureAsPdf,
+                                        contentDescription = "Exportar PDF",
+                                        tint = PequeBlue,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "PDF",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PequeBlue
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                onClick = { showEditChildModal = true },
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Editar ficha clínica",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Ficha",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 4 Píldoras de Telemetría Clínica Rápida (Peso, Talla, IMC, Alergias)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ClinicalTelemetryPill(
+                            label = "Peso",
+                            value = if (activeChild.weightKg > 0) "${activeChild.weightKg} kg" else "-- kg",
+                            accentColor = PequeBlue,
+                            modifier = Modifier.weight(1f)
+                        )
+                        ClinicalTelemetryPill(
+                            label = "Talla",
+                            value = if (activeChild.heightCm > 0) "${activeChild.heightCm} cm" else "-- cm",
+                            accentColor = PequeGreen,
+                            modifier = Modifier.weight(1f)
+                        )
+                        ClinicalTelemetryPill(
+                            label = "IMC",
+                            value = if (bmi > 0) String.format(Locale.US, "%.1f", bmi) else "--",
+                            accentColor = PequePurple,
+                            modifier = Modifier.weight(1f)
+                        )
+                        ClinicalTelemetryPill(
+                            label = "Alergia",
+                            value = if (hasAllergy) activeChild.allergies else "Ninguna",
+                            accentColor = if (hasAllergy) AlertRed else PequeGreen,
+                            isAlert = hasAllergy,
+                            modifier = Modifier.weight(1.25f)
                         )
                     }
-                    IconButton(
-                        onClick = { showEditChildModal = true },
-                        modifier = Modifier.size(28.dp)
+
+                    if (activeChild.lastCheckupSummary.isNotBlank() &&
+                        !activeChild.lastCheckupSummary.contains("Sin consultas registradas", ignoreCase = true)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Editar paciente",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = PequeBlue.copy(alpha = 0.08f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Última evolución (${activeChild.lastCheckupDate}): ${activeChild.lastCheckupSummary}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -684,8 +883,46 @@ fun PediatricianClinicalHeader(
     }
 }
 
+@Composable
+private fun ClinicalTelemetryPill(
+    label: String,
+    value: String,
+    accentColor: Color,
+    isAlert: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (isAlert) AlertRed.copy(alpha = 0.12f) else accentColor.copy(alpha = 0.08f),
+        border = BorderStroke(
+            1.dp,
+            if (isAlert) AlertRed.copy(alpha = 0.45f) else accentColor.copy(alpha = 0.22f)
+        ),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isAlert) AlertRed else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = if (isAlert) AlertRed else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
 /**
- * ESTACIÓN 1 DEL PEDIATRA: Pacientes y Triaje de Casa (Minimalista con pestañas limpias).
+ * ESTACIÓN 1 DEL PEDIATRA: Dashboard Ejecutivo de Guardia, Triaje de Casa y Acciones Clínicas.
  */
 @Composable
 fun PediatricianTriageAndPatientsScreen(
@@ -698,7 +935,10 @@ fun PediatricianTriageAndPatientsScreen(
     onEditActiveChild: (ChildProfile) -> Unit,
     onAddRecord: (HealthRecord) -> Unit,
     onReplyOrUpdateRecord: (String, String, String, String) -> Unit,
-    onSwitchToParentMode: () -> Unit
+    onSwitchToParentMode: () -> Unit,
+    onNavigateStation: (Int) -> Unit = {},
+    onOpenAiAssistant: () -> Unit = {},
+    onOpenHybridPwaHub: () -> Unit = {}
 ) {
     var selectedTab by remember { mutableIntStateOf(0) } // 0=Síntomas, 1=Dudas, 2=Diario/Estudios, 3=Indicaciones Enviadas
 
@@ -708,10 +948,22 @@ fun PediatricianTriageAndPatientsScreen(
     }
 
     val homeSymptoms = childRecords.filter { it.category == "SINTOMA_CASA" }
+    val alertSymptomsCount = homeSymptoms.count {
+        it.status.contains("Alerta", ignoreCase = true) ||
+            it.status.contains("Pendiente", ignoreCase = true) ||
+            !it.notes.contains("| Respuesta", ignoreCase = true)
+    }
     val parentDoubts = childRecords.filter { it.category == "DUDA_PADRE" }
+    val unansweredDoubtsCount = parentDoubts.count {
+        !it.status.contains("Respondida", ignoreCase = true) &&
+            !it.notes.contains("| Respuesta", ignoreCase = true)
+    }
     val homeDiaryAndStudies = childRecords.filter { it.category == "DIARIO_BEBE" || it.category == "ESTUDIO_PADRE" }
+    val activeMedsCount = childRecords.count { it.category == "MEDICAMENTO" }
+    val context = LocalContext.current
     val doctorIndications = childRecords.filter {
-        it.category in listOf("MEDICAMENTO", "CONSULTA", "CERTIFICADO") ||
+        it.category in listOf("MEDICAMENTO", "CONSULTA", "CERTIFICADO", "CALENDARIO") ||
+            it.status.contains("Push", ignoreCase = true) ||
             it.notes.contains("| Respuesta", ignoreCase = true)
     }
 
@@ -725,6 +977,46 @@ fun PediatricianTriageAndPatientsScreen(
     var recordToReply by remember { mutableStateOf<HealthRecord?>(null) }
     var doctorReplyInput by remember { mutableStateOf("") }
     var showDirectIndicationDialog by remember { mutableStateOf(false) }
+    var showPushNotificationDialog by remember { mutableStateOf(false) }
+    var showClinicalScalesDialog by remember { mutableStateOf(false) }
+
+    if (showPushNotificationDialog && activeChild != null) {
+        SendPediatricPushNotificationDialog(
+            activeChild = activeChild,
+            pediatricianProfile = pediatricianProfile,
+            onDismiss = { showPushNotificationDialog = false },
+            onSendPushRecord = { pushRecord ->
+                onAddRecord(pushRecord)
+                onEditActiveChild(
+                    activeChild.copy(
+                        lastCheckupDate = pushRecord.dateText,
+                        lastCheckupSummary = "Push enviado: ${pushRecord.title}"
+                    )
+                )
+                showPushNotificationDialog = false
+                selectedTab = 3
+            }
+        )
+    }
+
+    if (showClinicalScalesDialog && activeChild != null) {
+        PediatricScalesAndFluidsDialog(
+            child = activeChild,
+            pediatricianName = pediatricianProfile.name,
+            onDismiss = { showClinicalScalesDialog = false },
+            onSaveEvaluation = { rec ->
+                onAddRecord(rec)
+                onEditActiveChild(
+                    activeChild.copy(
+                        lastCheckupDate = "Hoy",
+                        lastCheckupSummary = "${rec.title} · ${rec.subtitle}"
+                    )
+                )
+                showClinicalScalesDialog = false
+                selectedTab = 3
+            }
+        )
+    }
 
     if (showDirectIndicationDialog && activeChild != null) {
         var indTitle by remember { mutableStateOf("") }
@@ -797,6 +1089,7 @@ fun PediatricianTriageAndPatientsScreen(
                 Button(
                     onClick = {
                         if (indTitle.isNotBlank()) {
+                            val cleanNote = indDetails.trim().ifBlank { "Seguir indicaciones médicas en casa." }
                             onAddRecord(
                                 HealthRecord(
                                     childId = activeChild.id,
@@ -805,14 +1098,21 @@ fun PediatricianTriageAndPatientsScreen(
                                     title = indTitle.trim(),
                                     subtitle = "Indicación de ${pediatricianProfile.name}",
                                     dateText = "Hoy",
-                                    status = "Indicación activa",
-                                    notes = indDetails.trim().ifBlank { "Seguir indicaciones médicas en casa." }
+                                    status = "Alerta Push",
+                                    notes = "[PUSH] $cleanNote"
                                 )
+                            )
+                            PediatricNotificationManager.dispatchPushNotification(
+                                context = context,
+                                title = "Nueva Indicación: ${indTitle.trim()}",
+                                body = cleanNote,
+                                childName = activeChild.name.substringBefore(" "),
+                                isAppointment = false
                             )
                             onEditActiveChild(
                                 activeChild.copy(
                                     lastCheckupDate = "Hoy",
-                                    lastCheckupSummary = "${indTitle.trim()}: ${indDetails.trim().take(120)}"
+                                    lastCheckupSummary = "${indTitle.trim()}: ${cleanNote.take(120)}"
                                 )
                             )
                             showDirectIndicationDialog = false
@@ -871,7 +1171,14 @@ fun PediatricianTriageAndPatientsScreen(
                                 target.id,
                                 nextStatus,
                                 combined,
-                                "Indicación enviada al Escritorio de Padres"
+                                "Indicación y alerta push enviadas al Escritorio de Padres"
+                            )
+                            PediatricNotificationManager.dispatchPushNotification(
+                                context = context,
+                                title = "Respuesta de ${pediatricianProfile.name}: ${target.title}",
+                                body = cleanReply,
+                                childName = activeChild?.name?.substringBefore(" ") ?: "",
+                                isAppointment = false
                             )
                             if (activeChild != null) {
                                 onEditActiveChild(
@@ -917,64 +1224,275 @@ fun PediatricianTriageAndPatientsScreen(
             )
         }
 
-        // Botón rápido para enviar una indicación directa al Escritorio de Padres
+        item {
+            HybridPwaQuickBannerCard(
+                onOpenHybridPwaHub = onOpenHybridPwaHub
+            )
+        }
+
         if (activeChild != null) {
+            // Resumen Ejecutivo de Guardia y Triaje (4 KPIs interactivos)
             item {
-                Button(
-                    onClick = { showDirectIndicationDialog = true },
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PequeBlue),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("send_direct_indication_button")
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Monitor de Guardia · ${activeChild.name.substringBefore(" ")}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "${childRecords.size} eventos clínicos",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = PequeBlue
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ClinicalKpiMetricCard(
+                            title = "Síntomas Casa",
+                            metricValue = "${homeSymptoms.size}",
+                            subtitle = if (alertSymptomsCount > 0) "$alertSymptomsCount por revisar" else "Al día",
+                            icon = Icons.Default.Notifications,
+                            accentColor = if (alertSymptomsCount > 0) AlertRed else PequeOrange,
+                            isSelected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            modifier = Modifier.weight(1f)
+                        )
+                        ClinicalKpiMetricCard(
+                            title = "Dudas Padres",
+                            metricValue = "${parentDoubts.size}",
+                            subtitle = if (unansweredDoubtsCount > 0) "$unansweredDoubtsCount sin responder" else "Respondidas",
+                            icon = Icons.Default.QuestionAnswer,
+                            accentColor = PequePurple,
+                            isSelected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ClinicalKpiMetricCard(
+                            title = "Diario y Estudios",
+                            metricValue = "${homeDiaryAndStudies.size}",
+                            subtitle = "Bitácora en casa",
+                            icon = Icons.Default.Straighten,
+                            accentColor = PequeGreen,
+                            isSelected = selectedTab == 2,
+                            onClick = { selectedTab = 2 },
+                            modifier = Modifier.weight(1f)
+                        )
+                        ClinicalKpiMetricCard(
+                            title = "Indicaciones Dr.",
+                            metricValue = "${doctorIndications.size}",
+                            subtitle = "$activeMedsCount recetas activas",
+                            icon = Icons.Default.Medication,
+                            accentColor = PequeBlue,
+                            isSelected = selectedTab == 3,
+                            onClick = { selectedTab = 3 },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            // Bento Grid 2x2 de Herramientas Clínicas Rápidas + Botón de Indicación Directa
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "Enviar Indicación Médica a los Padres (${activeChild.name.substringBefore(" ")})",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
+                        text = "Acciones Clínicas Rápidas",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { showDirectIndicationDialog = true },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PequeBlue),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("send_direct_indication_button")
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Enviar Indicación",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Button(
+                            onClick = { showPushNotificationDialog = true },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PequeOrange),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("open_push_notification_dialog_button")
+                        ) {
+                            Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Alerta / Cita Push",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ClinicalQuickToolTile(
+                            title = "Dosis mg/kg y SOAP",
+                            subtitle = "Calculadora ponderal",
+                            icon = Icons.Default.Calculate,
+                            accentColor = PequeBlue,
+                            onClick = { onNavigateStation(1) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        ClinicalQuickToolTile(
+                            title = "Curvas OMS y PAI",
+                            subtitle = "Percentiles y vacunas",
+                            icon = Icons.Default.Straighten,
+                            accentColor = PequeGreen,
+                            onClick = { onNavigateStation(2) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ClinicalQuickToolTile(
+                            title = "Estudios y Certificados",
+                            subtitle = "Laboratorio y alta",
+                            icon = Icons.Default.MedicalServices,
+                            accentColor = PequeOrange,
+                            onClick = { onNavigateStation(3) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        ClinicalQuickToolTile(
+                            title = "Síntesis Clínica",
+                            subtitle = "Soporte diferencial",
+                            icon = Icons.Default.AutoAwesome,
+                            accentColor = CardAiIcon,
+                            onClick = onOpenAiAssistant,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // Acceso minimalista a Escalas de Guardia, TEP y Líquidos Holliday-Segar / Plan B OMS
+                    OutlinedButton(
+                        onClick = { showClinicalScalesDialog = true },
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, PequePurple.copy(alpha = 0.45f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Calculate,
+                            contentDescription = null,
+                            tint = PequePurple,
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Escalas de Urgencia (TEP / Wood-Downes) y Líquidos Holliday-Segar",
+                            color = PequePurple,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
 
+        // Bandeja de Triaje de Casa con Pestañas
         item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf(
-                    "Síntomas (${homeSymptoms.size})",
-                    "Dudas (${parentDoubts.size})",
-                    "Diario y Estudios (${homeDiaryAndStudies.size})",
-                    "Indicaciones Enviadas (${doctorIndications.size})"
-                ).forEachIndexed { idx, label ->
-                    FilterChip(
-                        selected = selectedTab == idx,
-                        onClick = { selectedTab = idx },
-                        label = { Text(label) }
-                    )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Bandeja Bidireccional con Padres",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(
+                        "Síntomas (${homeSymptoms.size})",
+                        "Dudas (${parentDoubts.size})",
+                        "Diario y Estudios (${homeDiaryAndStudies.size})",
+                        "Indicaciones Enviadas (${doctorIndications.size})"
+                    ).forEachIndexed { idx, label ->
+                        FilterChip(
+                            selected = selectedTab == idx,
+                            onClick = { selectedTab = idx },
+                            label = { Text(label) }
+                        )
+                    }
                 }
+            }
+        }
+
+        if (selectedTab == 0 && homeSymptoms.isNotEmpty() && activeChild != null) {
+            item {
+                FeverThermalCurveCard(
+                    childName = activeChild.name,
+                    symptomRecords = homeSymptoms
+                )
             }
         }
 
         if (visibleRecords.isEmpty()) {
             item {
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(18.dp),
                     color = MaterialTheme.colorScheme.surface,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "Sin registros en esta categoría para ${activeChild?.name ?: "este paciente"}.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Sin registros en esta bandeja para ${activeChild?.name ?: "este paciente"}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Cuando mamá o papá registren síntomas, dudas o mediciones desde casa, aparecerán aquí en tiempo real para que puedas responderles.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         } else {
@@ -996,6 +1514,134 @@ fun PediatricianTriageAndPatientsScreen(
 }
 
 @Composable
+private fun ClinicalKpiMetricCard(
+    title: String,
+    metricValue: String,
+    subtitle: String,
+    icon: ImageVector,
+    accentColor: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(18.dp),
+        color = if (isSelected) accentColor.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            width = if (isSelected) 1.5.dp else 1.dp,
+            color = if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+        ),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = metricValue,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = accentColor
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = accentColor.copy(alpha = 0.14f),
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ClinicalQuickToolTile(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    accentColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = accentColor.copy(alpha = 0.14f),
+                modifier = Modifier.size(34.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ClinicalParentInboxCard(
     record: HealthRecord,
     badgeText: String,
@@ -1003,10 +1649,21 @@ private fun ClinicalParentInboxCard(
     actionLabel: String,
     onReplyClicked: () -> Unit
 ) {
+    val parentReportText = remember(record.notes) {
+        record.notes.substringBefore("| Respuesta").trim()
+    }
+    val doctorReplyText = remember(record.notes) {
+        if (record.notes.contains("| Respuesta")) {
+            record.notes.substringAfter("| ").trim()
+        } else {
+            ""
+        }
+    }
+
     Surface(
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1015,31 +1672,74 @@ private fun ClinicalParentInboxCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = badgeText,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = badgeColor
-                )
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = badgeColor.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        text = badgeText,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = badgeColor,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
                 Text(
                     text = record.dateText,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = record.title,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            if (record.subtitle.isNotBlank()) {
+                Text(
+                    text = record.subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = PequeBlue
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = record.notes,
+                text = parentReportText.ifBlank { record.notes },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            if (doctorReplyText.isNotBlank()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = PequeGreen.copy(alpha = 0.10f),
+                    border = BorderStroke(1.dp, PequeGreen.copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = PequeGreen,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = doctorReplyText,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(10.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1074,9 +1774,29 @@ fun PediatricianConsultationAndDoseScreen(
     onSwitchToParentMode: () -> Unit,
     clinicalSupportViewModel: AiAssistantViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     var activeToolTab by remember { mutableIntStateOf(0) } // 0 = Calculadora Dosis, 1 = Nota SOAP y Signos Vitales
+    var showPushReminderModal by remember { mutableStateOf(false) }
     var isGeneratingSoapDraft by remember { mutableStateOf(false) }
     val vitalRef = getPediatricVitalReference(activeChild?.ageYears ?: 5L)
+
+    if (showPushReminderModal && activeChild != null) {
+        SendPediatricPushNotificationDialog(
+            activeChild = activeChild,
+            pediatricianProfile = pediatricianProfile,
+            onDismiss = { showPushReminderModal = false },
+            onSendPushRecord = { pushRecord ->
+                onAddRecord(pushRecord)
+                onEditActiveChild(
+                    activeChild.copy(
+                        lastCheckupDate = pushRecord.dateText,
+                        lastCheckupSummary = "Push enviado: ${pushRecord.title}"
+                    )
+                )
+                showPushReminderModal = false
+            }
+        )
+    }
 
     val childRecords = remember(records, activeChild) {
         if (activeChild == null) emptyList()
@@ -1092,6 +1812,8 @@ fun PediatricianConsultationAndDoseScreen(
     var rrInput by remember { mutableStateOf("") }
     var tempInput by remember { mutableStateOf("") }
     var spo2Input by remember { mutableStateOf("") }
+    var bpInput by remember { mutableStateOf("") }
+    var painOrGlucoseInput by remember { mutableStateOf("") }
 
     val physicalExamChips = listOf(
         "Hidratado y activo",
@@ -1157,7 +1879,12 @@ fun PediatricianConsultationAndDoseScreen(
         }
 
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 FilterChip(
                     selected = activeToolTab == 0,
                     onClick = { activeToolTab = 0 },
@@ -1168,6 +1895,21 @@ fun PediatricianConsultationAndDoseScreen(
                     onClick = { activeToolTab = 1 },
                     label = { Text("Consulta SOAP y Vitales") }
                 )
+                if (activeChild != null) {
+                    FilterChip(
+                        selected = false,
+                        onClick = { showPushReminderModal = true },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsActive,
+                                contentDescription = null,
+                                tint = PequeOrange,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        label = { Text("Recordatorio Push") }
+                    )
+                }
             }
         }
 
@@ -1271,13 +2013,17 @@ fun PediatricianConsultationAndDoseScreen(
                         val formattedMg = String.format(Locale.US, "%.1f", totalMgPerDose)
                         val formattedMl = String.format(Locale.US, "%.1f", exactMlPerDose)
                         val formattedDrops = String.format(Locale.US, "%.0f", exactDropsPerDose)
+                        val childHeightCm = activeChild?.heightCm ?: 0.0
+                        val bsaM2 = calculateMostellerBsa(weightNum, childHeightCm)
+                        val dailyFluidsMl = calculateHollidaySegarDailyMl(weightNum)
+                        val hourlyFluidsMl = dailyFluidsMl / 24.0
 
                         Surface(
                             shape = RoundedCornerShape(14.dp),
                             color = PequeBlue.copy(alpha = 0.08f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(
                                     text = if (selectedDrug.id.contains("gotas")) {
                                         "Dar $formattedMl mL ($formattedDrops gotas) cada $everyHours h por $durationDays días"
@@ -1288,12 +2034,27 @@ fun PediatricianConsultationAndDoseScreen(
                                     fontWeight = FontWeight.ExtraBold,
                                     color = PequeBlue
                                 )
-                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = selectedDrug.parentFriendlyTip,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                                if (weightNum > 0.0) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 4.dp),
+                                        color = PequeBlue.copy(alpha = 0.2f)
+                                    )
+                                    Text(
+                                        text = "SC Mosteller: ${
+                                            if (bsaM2 > 0) String.format(Locale.US, "%.2f m²", bsaM2) else "-- m²"
+                                        } · Líquidos Holliday-Segar: ${
+                                            String.format(Locale.US, "%.0f mL/día (%.1f mL/h)", dailyFluidsMl, hourlyFluidsMl)
+                                        }",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
 
@@ -1316,8 +2077,15 @@ fun PediatricianConsultationAndDoseScreen(
                                             subtitle = doseText,
                                             dateText = "Por $durationDays días",
                                             status = "Activo",
-                                            notes = "Indicado por ${pediatricianProfile.name}: ${selectedDrug.parentFriendlyTip} · ($mgKgNum mg/kg para $weightNum kg)."
+                                            notes = "[PUSH] Indicado por ${pediatricianProfile.name}: ${selectedDrug.parentFriendlyTip} · ($mgKgNum mg/kg para $weightNum kg)."
                                         )
+                                    )
+                                    PediatricNotificationManager.dispatchPushNotification(
+                                        context = context,
+                                        title = "Nueva Receta: ${selectedDrug.name}",
+                                        body = "$doseText · ${selectedDrug.parentFriendlyTip}",
+                                        childName = activeChild.name.substringBefore(" "),
+                                        isAppointment = false
                                     )
                                     onEditActiveChild(
                                         activeChild.copy(
@@ -1408,6 +2176,28 @@ fun PediatricianConsultationAndDoseScreen(
                             )
                         }
 
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = bpInput,
+                                onValueChange = { bpInput = it },
+                                label = { Text("TA (mmHg)") },
+                                placeholder = { Text("Ej. 95/60") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = painOrGlucoseInput,
+                                onValueChange = { painOrGlucoseInput = it },
+                                label = { Text("EVA Dolor / Glucemia") },
+                                placeholder = { Text("Ej. EVA 0/10 · 88 mg/dL") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
 
                         Text(
@@ -1469,7 +2259,7 @@ fun PediatricianConsultationAndDoseScreen(
                             onClick = {
                                 if (!isGeneratingSoapDraft) {
                                     isGeneratingSoapDraft = true
-                                    val vitalsText = "FC: ${hrInput.ifBlank { "N/R" }} lpm, FR: ${rrInput.ifBlank { "N/R" }} rpm, Temp: ${tempInput.ifBlank { "N/R" }} °C, SpO2: ${spo2Input.ifBlank { "N/R" }}%"
+                                    val vitalsText = "FC: ${hrInput.ifBlank { "N/R" }} lpm, FR: ${rrInput.ifBlank { "N/R" }} rpm, Temp: ${tempInput.ifBlank { "N/R" }} °C, SpO2: ${spo2Input.ifBlank { "N/R" }}%, TA: ${bpInput.ifBlank { "N/R" }}"
                                     val examSummary = selectedExamFindings.joinToString(", ").ifBlank { "Sin hallazgos patológicos" }
                                     clinicalSupportViewModel.generateSoapEvolutionDraft(
                                         child = activeChild,
@@ -1502,7 +2292,11 @@ fun PediatricianConsultationAndDoseScreen(
                                 } else {
                                     val cleanDiag = diagnosisCie10.trim().ifBlank { "Consulta Pediátrica" }
                                     val examSummary = selectedExamFindings.joinToString(", ").ifBlank { "Exploración física general" }
-                                    val vitalsText = "FC: ${hrInput.ifBlank { "-" }} lpm, FR: ${rrInput.ifBlank { "-" }} rpm, Temp: ${tempInput.ifBlank { "-" }} °C, SpO2: ${spo2Input.ifBlank { "-" }}%"
+                                    val extraVitals = buildString {
+                                        if (bpInput.isNotBlank()) append(", TA: $bpInput mmHg")
+                                        if (painOrGlucoseInput.isNotBlank()) append(", $painOrGlucoseInput")
+                                    }
+                                    val vitalsText = "FC: ${hrInput.ifBlank { "-" }} lpm, FR: ${rrInput.ifBlank { "-" }} rpm, Temp: ${tempInput.ifBlank { "-" }} °C, SpO2: ${spo2Input.ifBlank { "-" }}%$extraVitals"
                                     val planSummary = clinicalSoapNotes.trim().ifBlank { "Seguir indicaciones médicas en casa." }
                                     onAddRecord(
                                         HealthRecord(
@@ -1512,9 +2306,16 @@ fun PediatricianConsultationAndDoseScreen(
                                             title = cleanDiag,
                                             subtitle = "${pediatricianProfile.name} · Plan e Indicaciones",
                                             dateText = "Hoy",
-                                            status = "Completada",
-                                            notes = "Vitales: $vitalsText. | EF: $examSummary. | Plan para Padres: $planSummary"
+                                            status = "Alerta Push",
+                                            notes = "[PUSH] Vitales: $vitalsText. | EF: $examSummary. | Plan para Padres: $planSummary"
                                         )
+                                    )
+                                    PediatricNotificationManager.dispatchPushNotification(
+                                        context = context,
+                                        title = "Consulta Pediátrica: $cleanDiag",
+                                        body = planSummary,
+                                        childName = activeChild.name.substringBefore(" "),
+                                        isAppointment = false
                                     )
                                     onEditActiveChild(
                                         activeChild.copy(
@@ -1528,6 +2329,8 @@ fun PediatricianConsultationAndDoseScreen(
                                     rrInput = ""
                                     tempInput = ""
                                     spo2Input = ""
+                                    bpInput = ""
+                                    painOrGlucoseInput = ""
                                 }
                             },
                             shape = RoundedCornerShape(50),
@@ -1637,8 +2440,26 @@ fun PediatricianGrowthAndVaccinesScreen(
 
         if (selectedSubTab == 0) {
             item {
-                val w = weightInput.toDoubleOrNull() ?: (activeChild?.weightKg ?: 0.0)
-                val h = heightInput.toDoubleOrNull() ?: (activeChild?.heightCm ?: 0.0)
+                val liveW = weightInput.replace(",", ".").toDoubleOrNull()
+                val liveH = heightInput.replace(",", ".").toDoubleOrNull()
+                val livePc = headCircInput.replace(",", ".").toDoubleOrNull()
+
+                WhoGrowthChartCard(
+                    activeChild = activeChild,
+                    records = records,
+                    isPediatricianMode = true,
+                    liveWeightKg = liveW,
+                    liveHeightCm = liveH,
+                    liveHeadCircCm = livePc,
+                    onAutoPercentileComputed = { autoChannel ->
+                        percentileChoice = autoChannel
+                    }
+                )
+            }
+
+            item {
+                val w = weightInput.replace(",", ".").toDoubleOrNull() ?: (activeChild?.weightKg ?: 0.0)
+                val h = heightInput.replace(",", ".").toDoubleOrNull() ?: (activeChild?.heightCm ?: 0.0)
                 val hm = (h / 100.0).coerceAtLeast(0.4)
                 val bmi = if (w > 0.0 && h > 0.0) w / (hm * hm) else 0.0
                 val formattedBmi = String.format(Locale.US, "%.1f", bmi)
@@ -1691,12 +2512,54 @@ fun PediatricianGrowthAndVaccinesScreen(
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            listOf("Percentil 50-75 OMS", "Percentil 25-50 OMS", "Percentil 85-95 OMS", "Percentil <15 OMS").forEach { p ->
+                            listOf(
+                                "Percentil 50-85 OMS (Eutrófico)",
+                                "Percentil 15-50 OMS (Eutrófico)",
+                                "Percentil 85-97 OMS (Vigilancia)",
+                                "Percentil 3-15 OMS (Vigilancia)",
+                                "Percentil <3 OMS (Alerta)",
+                                "Percentil >97 OMS (Alerta)"
+                            ).forEach { p ->
                                 FilterChip(
                                     selected = percentileChoice == p,
                                     onClick = { percentileChoice = p },
                                     label = { Text(p) }
                                 )
+                            }
+                        }
+
+                        if (bmi > 0.0) {
+                            val nutritionalStatus = when {
+                                bmi < 13.8 -> "Riesgo de bajo peso · Vigilar ganancia ponderal"
+                                bmi <= 18.2 -> "Estado Nutricional Eutrófico (Normal OMS)"
+                                else -> "Sobrepeso / Percentil alto · Ajustar plan nutricional"
+                            }
+                            val statusColor = if (bmi in 13.8..18.2) PequeGreen else PequeOrange
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = statusColor.copy(alpha = 0.10f),
+                                border = BorderStroke(1.dp, statusColor.copy(alpha = 0.35f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = nutritionalStatus,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = statusColor,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = "IMC $formattedBmi",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = statusColor
+                                    )
+                                }
                             }
                         }
 
@@ -1738,6 +2601,15 @@ fun PediatricianGrowthAndVaccinesScreen(
                 }
             }
 
+            if (activeChild != null) {
+                item {
+                    TannerTargetHeightCalculatorCard(
+                        activeChild = activeChild,
+                        onSaveTargetHeightRecord = { rec -> onAddRecord(rec) }
+                    )
+                }
+            }
+
             val childGrowthList = records.filter {
                 it.category == "CRECIMIENTO" &&
                     (activeChild == null || it.childId == activeChild.id || it.childName == activeChild.name)
@@ -1764,7 +2636,7 @@ fun PediatricianGrowthAndVaccinesScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
-                            text = "Aplicar Vacuna Oficial",
+                            text = "Aplicar Vacuna Oficial o Esquema PAI por Edad",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -1774,7 +2646,7 @@ fun PediatricianGrowthAndVaccinesScreen(
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            listOf("Influenza Estacional", "SRP (Triple Viral)", "DPT Refuerzo", "Neumococo 13V", "Rotavirus", "VPH").forEach { v ->
+                            listOf("Influenza Estacional", "SRP (Triple Viral)", "DPT Refuerzo", "Neumococo 13V", "Rotavirus", "Hexavalente", "BCG + Hep B", "VPH").forEach { v ->
                                 FilterChip(
                                     selected = vaccineName == v,
                                     onClick = { vaccineName = v },
@@ -1811,33 +2683,65 @@ fun PediatricianGrowthAndVaccinesScreen(
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
-                        Button(
-                            onClick = {
-                                if (activeChild == null) {
-                                    onAddChildClicked()
-                                } else if (vaccineName.isNotBlank()) {
-                                    onAddRecord(
-                                        HealthRecord(
-                                            childId = activeChild.id,
-                                            childName = activeChild.name,
-                                            category = "VACUNA",
-                                            title = vaccineName.trim(),
-                                            subtitle = vaccineDose.trim().ifBlank { "Dosis aplicada" },
-                                            dateText = "Hoy",
-                                            status = "Aplicada",
-                                            notes = "Lote: ${vaccineLot.ifBlank { "Registro clínico" }} · ${pediatricianProfile.name}."
-                                        )
-                                    )
-                                    vaccineName = ""
-                                    vaccineDose = ""
-                                    vaccineLot = ""
-                                }
-                            },
-                            shape = RoundedCornerShape(50),
-                            colors = ButtonDefaults.buttonColors(containerColor = PequeBlue),
-                            modifier = Modifier.fillMaxWidth()
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("Certificar Vacuna", color = Color.White, fontWeight = FontWeight.Bold)
+                            Button(
+                                onClick = {
+                                    if (activeChild == null) {
+                                        onAddChildClicked()
+                                    } else if (vaccineName.isNotBlank()) {
+                                        onAddRecord(
+                                            HealthRecord(
+                                                childId = activeChild.id,
+                                                childName = activeChild.name,
+                                                category = "VACUNA",
+                                                title = vaccineName.trim(),
+                                                subtitle = vaccineDose.trim().ifBlank { "Dosis aplicada" },
+                                                dateText = "Hoy",
+                                                status = "Aplicada",
+                                                notes = "Lote: ${vaccineLot.ifBlank { "Registro clínico" }} · ${pediatricianProfile.name}."
+                                            )
+                                        )
+                                        vaccineName = ""
+                                        vaccineDose = ""
+                                        vaccineLot = ""
+                                    }
+                                },
+                                shape = RoundedCornerShape(50),
+                                colors = ButtonDefaults.buttonColors(containerColor = PequeBlue),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Certificar Aplicada", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    if (activeChild == null) {
+                                        onAddChildClicked()
+                                    } else if (vaccineName.isNotBlank()) {
+                                        onAddRecord(
+                                            HealthRecord(
+                                                childId = activeChild.id,
+                                                childName = activeChild.name,
+                                                category = "VACUNA",
+                                                title = vaccineName.trim(),
+                                                subtitle = vaccineDose.trim().ifBlank { "Próxima dosis PAI" },
+                                                dateText = "Programada",
+                                                status = "Pendiente",
+                                                notes = "Programada en cartilla PAI por ${pediatricianProfile.name}."
+                                            )
+                                        )
+                                        vaccineName = ""
+                                        vaccineDose = ""
+                                        vaccineLot = ""
+                                    }
+                                },
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Programar Próxima", fontWeight = FontWeight.SemiBold)
+                            }
                         }
                     }
                 }
@@ -1903,7 +2807,7 @@ fun PediatricianClinicalSuiteScreen(
     onOpenAiAssistant: () -> Unit,
     onSwitchToParentMode: () -> Unit
 ) {
-    var selectedSection by remember { mutableIntStateOf(0) } // 0=Perinatal, 1=Neuro, 2=Certificados, 3=Módulos
+    var selectedSection by remember { mutableIntStateOf(0) } // 0=Perinatal, 1=Neuro, 2=Laboratorio/Imagen, 3=Nutrición, 4=Certificados, 5=Módulos
 
     var sdgInput by remember { mutableStateOf("") }
     var apgarInput by remember { mutableStateOf("") }
@@ -1911,6 +2815,12 @@ fun PediatricianClinicalSuiteScreen(
 
     var neuroMilestoneTitle by remember { mutableStateOf("") }
     var neuroDetails by remember { mutableStateOf("") }
+
+    var labOrderTitle by remember { mutableStateOf("") }
+    var labOrderNotes by remember { mutableStateOf("") }
+
+    var nutritionPlanTitle by remember { mutableStateOf("") }
+    var nutritionPlanNotes by remember { mutableStateOf("") }
 
     var certType by remember { mutableStateOf("") }
     var certBody by remember(activeChild) { mutableStateOf("") }
@@ -1971,7 +2881,14 @@ fun PediatricianClinicalSuiteScreen(
         }
 
         item {
-            val sections = listOf("Perinatal", "Neurodesarrollo", "Certificados", "Módulos")
+            val sections = listOf(
+                "Perinatal",
+                "Neurodesarrollo",
+                "Lab y Gabinete",
+                "Nutrición y Lactancia",
+                "Certificados",
+                "Módulos"
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2120,6 +3037,183 @@ fun PediatricianClinicalSuiteScreen(
 
             2 -> {
                 item {
+                    val labPresets = listOf(
+                        "Biometría Hemática Completa",
+                        "Examen General de Orina + Urocultivo",
+                        "Coproparasitoscópico (3 muestras)",
+                        "PCR, VSG y Procalcitonina",
+                        "Perfil Férrico y Ferritina",
+                        "Panel Viral Respiratorio",
+                        "Radiografía de Tórax AP y Lateral"
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Emitir Orden de Laboratorio o Gabinete", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                labPresets.forEach { preset ->
+                                    FilterChip(
+                                        selected = labOrderTitle == preset,
+                                        onClick = {
+                                            labOrderTitle = preset
+                                            if (labOrderNotes.isBlank()) {
+                                                labOrderNotes = "Acudir en ayuno según indicación de laboratorio y subir resultados en el Escritorio de Padres."
+                                            }
+                                        },
+                                        label = { Text(preset) }
+                                    )
+                                }
+                            }
+                            OutlinedTextField(
+                                value = labOrderTitle,
+                                onValueChange = { labOrderTitle = it },
+                                label = { Text("Estudio solicitado") },
+                                placeholder = { Text("Ej. Biometría Hemática, Urocultivo, Rx...") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = labOrderNotes,
+                                onValueChange = { labOrderNotes = it },
+                                label = { Text("Indicaciones clínicas y preparación") },
+                                placeholder = { Text("Ej. Ayuno de 4 horas, muestra matutina...") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Button(
+                                onClick = {
+                                    if (activeChild == null) {
+                                        onAddChildClicked()
+                                    } else if (labOrderTitle.isNotBlank()) {
+                                        onAddRecord(
+                                            HealthRecord(
+                                                childId = activeChild.id,
+                                                childName = activeChild.name,
+                                                category = "LABORATORIO",
+                                                title = "Orden: ${labOrderTitle.trim()}",
+                                                subtitle = "Solicitado por ${pediatricianProfile.name}",
+                                                dateText = "Hoy",
+                                                status = "Solicitado",
+                                                notes = labOrderNotes.trim().ifBlank { "Realizar estudio y adjuntar resultado en la app." }
+                                            )
+                                        )
+                                        labOrderTitle = ""
+                                        labOrderNotes = ""
+                                    }
+                                },
+                                shape = RoundedCornerShape(50),
+                                colors = ButtonDefaults.buttonColors(containerColor = PequeOrange),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Enviar Orden a los Padres", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+                itemsIndexed(
+                    childRecords.filter { it.category == "LABORATORIO" || it.category == "ESTUDIO_PADRE" },
+                    key = { idx, rec -> "${rec.id.ifBlank { "lab" }}_$idx" }
+                ) { _, rec ->
+                    ClinicalRecordSimpleCard(rec)
+                }
+            }
+
+            3 -> {
+                item {
+                    val nutritionPresets = listOf(
+                        "Lactancia materna a libre demanda" to "Asegurar tomas frecuentes (8-12 al día), buen agarre y suplementación con Vitamina D (400 UI/día).",
+                        "Inicio de Alimentación Complementaria (6m)" to "Introducir alimentos ricos en hierro (carne, legumbres, verduras y frutas naturales) en texturas progresivas, regla de 3 días para alérgenos, sin sal ni azúcar añadida.",
+                        "Plan de Dieta Astringente e Hidratación" to "Ofrecer suero de rehidratación oral tras cada evacuación y dieta blanda (arroz, pollo hervido, manzana, plátano).",
+                        "Plato Saludable Escolar y Hierro" to "3 comidas principales y 2 colaciones saludables; priorizar proteína magra, vegetales verdes, frutas enteras y agua natural."
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Plan Nutricional, Lactancia y Ablactación", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                nutritionPresets.forEach { (title, body) ->
+                                    FilterChip(
+                                        selected = nutritionPlanTitle == title,
+                                        onClick = {
+                                            nutritionPlanTitle = title
+                                            nutritionPlanNotes = body
+                                        },
+                                        label = { Text(title.take(26) + "…") }
+                                    )
+                                }
+                            }
+                            OutlinedTextField(
+                                value = nutritionPlanTitle,
+                                onValueChange = { nutritionPlanTitle = it },
+                                label = { Text("Título del Plan Nutricional") },
+                                placeholder = { Text("Ej. Alimentación complementaria 6 meses...") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = nutritionPlanNotes,
+                                onValueChange = { nutritionPlanNotes = it },
+                                label = { Text("Pautas detalladas para casa") },
+                                placeholder = { Text("Alimentos permitidos, horarios, suplementos...") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Button(
+                                onClick = {
+                                    if (activeChild == null) {
+                                        onAddChildClicked()
+                                    } else if (nutritionPlanTitle.isNotBlank()) {
+                                        onAddRecord(
+                                            HealthRecord(
+                                                childId = activeChild.id,
+                                                childName = activeChild.name,
+                                                category = "NUTRICION",
+                                                title = nutritionPlanTitle.trim(),
+                                                subtitle = "Plan Nutricional · ${pediatricianProfile.name}",
+                                                dateText = "Hoy",
+                                                status = "Activo",
+                                                notes = nutritionPlanNotes.trim().ifBlank { "Seguir pauta nutricional indicada." }
+                                            )
+                                        )
+                                        nutritionPlanTitle = ""
+                                        nutritionPlanNotes = ""
+                                    }
+                                },
+                                shape = RoundedCornerShape(50),
+                                colors = ButtonDefaults.buttonColors(containerColor = PequeGreen),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Enviar Plan Nutricional a Padres", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+                itemsIndexed(
+                    childRecords.filter { it.category == "NUTRICION" },
+                    key = { idx, rec -> "${rec.id.ifBlank { "nutri" }}_$idx" }
+                ) { _, rec ->
+                    ClinicalRecordSimpleCard(rec)
+                }
+            }
+
+            4 -> {
+                item {
                     Surface(
                         shape = RoundedCornerShape(18.dp),
                         color = MaterialTheme.colorScheme.surface,
@@ -2202,7 +3296,7 @@ fun PediatricianClinicalSuiteScreen(
                 }
             }
 
-            3 -> {
+            5 -> {
                 items(ClinicalModule.entries) { mod ->
                     Surface(
                         shape = RoundedCornerShape(14.dp),
@@ -2231,6 +3325,9 @@ fun PediatricianClinicalSuiteScreen(
 
 @Composable
 private fun ClinicalRecordSimpleCard(rec: HealthRecord) {
+    val context = LocalContext.current
+    val cleanNotes = remember(rec.notes) { rec.notes.replace("[PUSH]", "").trim() }
+
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
@@ -2238,25 +3335,220 @@ private fun ClinicalRecordSimpleCard(rec: HealthRecord) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(
-                text = rec.title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = "${rec.subtitle} · ${rec.dateText}",
-                style = MaterialTheme.typography.labelSmall,
-                color = PequeBlue
-            )
-            if (rec.notes.isNotBlank()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = rec.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "${rec.subtitle} · ${rec.dateText}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = PequeBlue
+                    )
+                }
+                TextButton(
+                    onClick = {
+                        PediatricPdfAndShareHelper.generateAndShareRecordPdf(
+                            context = context,
+                            child = null,
+                            record = rec
+                        )
+                    },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PictureAsPdf,
+                        contentDescription = "Exportar PDF",
+                        tint = PequeBlue,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "PDF",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = PequeBlue
+                    )
+                }
+            }
+            if (cleanNotes.isNotBlank()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = rec.notes,
+                    text = cleanNotes,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
     }
+}
+
+/**
+ * Evaluador de Escalas Pediátricas de Guardia (TEP, Wood-Downes, Deshidratación)
+ * y Calculadora de Líquidos Holliday-Segar + Plan B OMS.
+ */
+@Composable
+fun PediatricScalesAndFluidsDialog(
+    child: ChildProfile,
+    pediatricianName: String,
+    onDismiss: () -> Unit,
+    onSaveEvaluation: (HealthRecord) -> Unit
+) {
+    var tepStatus by remember { mutableStateOf("TEP Estable (3 lados normales)") }
+    var respScale by remember { mutableStateOf("Wood-Downes 0 pts (Sin dificultad)") }
+    var dehydrationScale by remember { mutableStateOf("Hidratado · Plan A OMS") }
+    var weightInput by remember(child) {
+        mutableStateOf(if (child.weightKg > 0.0) child.weightKg.toString() else "")
+    }
+
+    val w = weightInput.replace(",", ".").toDoubleOrNull() ?: child.weightKg
+    val dailyFluids = calculateHollidaySegarDailyMl(w)
+    val hourlyFluids = dailyFluids / 24.0
+    val planBOrs4Hours = w * 75.0 // 75 mL/kg en 4 horas OMS
+    val bsa = calculateMostellerBsa(w, child.heightCm)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Escalas Clínicas y Líquidos (${child.name.substringBefore(" ")})",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = weightInput,
+                    onValueChange = { weightInput = it },
+                    label = { Text("Peso para cálculo hídrico (kg)") },
+                    placeholder = { Text("Ej. 14.5") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = PequeBlue.copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, PequeBlue.copy(alpha = 0.30f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Holliday-Segar: ${String.format(Locale.US, "%.0f mL/día (%.1f mL/h)", dailyFluids, hourlyFluids)}",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = PequeBlue
+                        )
+                        Text(
+                            text = "Plan B SRO OMS (75 mL/kg/4h): ${String.format(Locale.US, "%.0f mL en 4 horas", planBOrs4Hours)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (bsa > 0.0) {
+                            Text(
+                                text = "Superficie Corporal Mosteller: ${String.format(Locale.US, "%.2f m²", bsa)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Text("1. Triángulo de Evaluación Pediátrica (TEP)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(
+                        "TEP Estable (3 lados normales)",
+                        "Dificultad Respiratoria",
+                        "Choque Compensado",
+                        "Disfunción SNC"
+                    ).forEach { opt ->
+                        FilterChip(
+                            selected = tepStatus == opt,
+                            onClick = { tepStatus = opt },
+                            label = { Text(opt) }
+                        )
+                    }
+                }
+
+                Text("2. Escala Respiratoria (Wood-Downes / Westley)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(
+                        "Wood-Downes 0 pts (Sin dificultad)",
+                        "Leve (1-3 pts · Vigilancia)",
+                        "Moderada (4-7 pts · Nebulización)",
+                        "Grave (>7 pts · Urgencias)"
+                    ).forEach { opt ->
+                        FilterChip(
+                            selected = respScale == opt,
+                            onClick = { respScale = opt },
+                            label = { Text(opt) }
+                        )
+                    }
+                }
+
+                Text("3. Hidratación (Gorelick / Plan OMS)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(
+                        "Hidratado · Plan A OMS",
+                        "Deshidratación Leve-Mod · Plan B (75 mL/kg)",
+                        "Deshidratación Grave · Plan C IV"
+                    ).forEach { opt ->
+                        FilterChip(
+                            selected = dehydrationScale == opt,
+                            onClick = { dehydrationScale = opt },
+                            label = { Text(opt) }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val summaryNotes = "TEP: $tepStatus | Resp: $respScale | Hidratación: $dehydrationScale | " +
+                        "Holliday-Segar: ${String.format(Locale.US, "%.0f mL/día (%.1f mL/h)", dailyFluids, hourlyFluids)} · " +
+                        "Plan B SRO: ${String.format(Locale.US, "%.0f mL/4h", planBOrs4Hours)}."
+                    onSaveEvaluation(
+                        HealthRecord(
+                            childId = child.id,
+                            childName = child.name,
+                            category = "CONSULTA",
+                            title = "Valoración Clínica y Plan Hídrico",
+                            subtitle = "$tepStatus · $dehydrationScale",
+                            dateText = "Hoy",
+                            status = "Indicación activa",
+                            notes = "Evaluado por $pediatricianName: $summaryNotes"
+                        )
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = PequePurple)
+            ) {
+                Text("Guardar y Enviar a Padres", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cerrar") }
+        }
+    )
 }

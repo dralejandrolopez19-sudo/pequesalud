@@ -633,7 +633,8 @@ fun MoreAndFullStructureScreen(
     currentPin: String = "1234",
     onRequestSwitchWorkspace: () -> Unit = {},
     onOpenPinSettings: () -> Unit = {},
-    onClearAllData: () -> Unit = {}
+    onClearAllData: () -> Unit = {},
+    onOpenHybridPwaHub: () -> Unit = {}
 ) {
     var cloudSyncEnabled by remember { mutableStateOf(true) }
     var biometricPrivacyEnabled by remember { mutableStateOf(true) }
@@ -676,6 +677,14 @@ fun MoreAndFullStructureScreen(
     }
 
     val structureCards = listOf(
+        FullStructureCardData(
+            title = "PWA y GitHub Pages",
+            icon = Icons.Default.CloudDone,
+            iconBg = PequeBlue,
+            cardBg = Color(0xFFF0F6FF),
+            bullets = listOf("Arquitectura Mixta + Offline", "Escritorio Padres y Pediatra", "Curvas OMS en Web"),
+            onClick = onOpenHybridPwaHub
+        ),
         FullStructureCardData(
             title = "Inicio",
             icon = Icons.Default.Home,
@@ -805,6 +814,13 @@ fun MoreAndFullStructureScreen(
                 currentPin = currentPin,
                 onRequestSwitchMode = onRequestSwitchWorkspace,
                 onOpenPinSettings = onOpenPinSettings
+            )
+        }
+
+        // Tarjeta destacada de Arquitectura Mixta (Android Nativo + PWA GitHub Pages)
+        item {
+            HybridPwaQuickBannerCard(
+                onOpenHybridPwaHub = onOpenHybridPwaHub
             )
         }
 

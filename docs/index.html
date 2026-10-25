@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1E5AA8" />
+  <meta name="description" content="PequeSalud — Arquitectura Mixta (Android Nativa + PWA GitHub Pages). Escritorio de Padres, Estación Clínica del Pediatra, Curvas OMS (P3-P97), Calculadora Ponderal mg/kg y Sincronización Firebase." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="PequeSalud" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="./icons/icon-192.svg" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.svg" />
+  <title>PequeSalud — Plataforma Pediátrica (PWA + Android)</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <!-- Barra superior de estado de Arquitectura Mixta -->
+  <div class="top-arch-banner">
+    <div class="arch-badges">
+      <span class="arch-pill">
+        <span id="syncStatusDot" class="status-dot"></span>
+        <span id="syncStatusLabel">Sincronización Activa (Firebase + Offline)</span>
+      </span>
+      <span class="arch-pill" id="archBridgeBadge">Arquitectura Mixta: PWA + Android</span>
+      <span class="arch-pill" id="swStatusBadge">Service Worker: Listo</span>
+    </div>
+    <div class="arch-badges">
+      <button id="installPwaBtn" class="btn btn-safe hidden" style="padding: 4px 12px; font-size: 0.74rem;">
+        📲 Instalar App (PWA)
+      </button>
+      <button id="authActionBtn" class="btn btn-outline" style="padding: 4px 12px; font-size: 0.74rem; color: #fff; border-color: rgba(255,255,255,0.45);">
+        🔐 Conectar Google Cloud
+      </button>
+      <button id="toggleDarkBtn" class="btn btn-outline" style="padding: 4px 10px; font-size: 0.74rem; color: #fff; border-color: rgba(255,255,255,0.45);" title="Alternar modo oscuro">
+        🌙 Tema
+      </button>
+    </div>
+  </div>
+
+  <main class="app-shell">
+    <!-- Cabecera principal con selector de Escritorio (Padres vs Pediatra) -->
+    <header class="app-header">
+      <div class="brand-row">
+        <img src="./icons/icon-192.svg" alt="Icono PequeSalud" class="brand-logo" />
+        <div>
+          <span id="workspaceBadge" class="workspace-tag parent">ESCRITORIO DE PADRES</span>
+          <h1 class="brand-title" id="workspaceTitle">PequeSalud Familiar</h1>
+          <p class="brand-subtitle" id="workspaceSubtitle">Acompañamiento pediátrico cálido, vacunas PAI y curvas OMS</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="openAddChildModalBtn" class="btn btn-outline">
+          ➕ Hijo/a
+        </button>
+        <button id="switchWorkspaceBtn" class="btn btn-soft-blue">
+          🩺 Cambiar a Modo Pediatra (PIN)
+        </button>
+      </div>
+    </header>
+
+    <!-- Selector horizontal de Hijos / Pacientes y telemetría -->
+    <section class="child-strip-card" aria-label="Selector de paciente activo">
+      <div id="childChipsContainer" class="child-chips-row"></div>
+      <div id="activeChildSummaryBar" class="active-child-banner"></div>
+    </section>
+
+    <!-- Contenedor dinámico de vistas según pestaña y escritorio -->
+    <div id="mainViewContainer"></div>
+  </main>
+
+  <!-- Barra de navegación inferior adaptativa -->
+  <nav id="bottomNavBar" class="bottom-nav" aria-label="Navegación principal"></nav>
+
+  <!-- Modal PIN Modo Pediatra -->
+  <div id="pinModalBackdrop" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <h2 class="card-title" style="margin-bottom: 6px;">🔒 Acceso Clínico — Modo Pediatra</h2>
+      <p class="card-subtitle" style="margin-bottom: 14px;">
+        Ingresa el PIN médico para desbloquear la Estación Clínica del Pediatra (PIN por defecto: <strong>1234</strong>).
+      </p>
+      <div class="input-group" style="margin-bottom: 14px;">
+        <label for="pinInputField">PIN de seguridad del especialista</label>
+        <input id="pinInputField" type="password" inputmode="numeric" maxlength="6" class="input-control" placeholder="Ej. 1234" />
+      </div>
+      <p id="pinErrorMsg" style="color: var(--alert-red); font-size: 0.8rem; font-weight: 700; margin-bottom: 10px;" class="hidden">
+        PIN incorrecto. Usa 1234.
+      </p>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button id="fillDefaultPinBtn" class="btn btn-soft-blue" type="button">Usar 1234</button>
+        <button id="cancelPinModalBtn" class="btn btn-outline" type="button">Cancelar</button>
+        <button id="confirmPinModalBtn" class="btn btn-primary-pediatrician" type="button">Entrar al Consultorio</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Registrar / Editar Hijo -->
+  <div id="childModalBackdrop" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <h2 class="card-title" style="margin-bottom: 6px;">👶 Registrar Perfil Pediátrico</h2>
+      <p class="card-subtitle" style="margin-bottom: 14px;">
+        Se sincroniza automáticamente con Firebase Firestore y con la app Android.
+      </p>
+      <div class="form-row">
+        <div class="input-group">
+          <label for="childNameInput">Nombre completo</label>
+          <input id="childNameInput" type="text" class="input-control" placeholder="Ej. Sofía López" />
+        </div>
+        <div class="input-group">
+          <label for="childAgeInput">Edad (años)</label>
+          <input id="childAgeInput" type="number" min="0" max="19" step="1" class="input-control" value="2" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="input-group">
+          <label for="childGenderInput">Sexo biológico (Escala OMS)</label>
+          <select id="childGenderInput" class="input-control">
+            <option value="Femenino">Femenino (Niñas OMS)</option>
+            <option value="Masculino">Masculino (Niños OMS)</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label for="childBloodInput">Grupo sanguíneo</label>
+          <select id="childBloodInput" class="input-control">
+            <option value="O+">O+</option>
+            <option value="O-">O-</option>
+            <option value="A+">A+</option>
+            <option value="A-">A-</option>
+            <option value="B+">B+</option>
+            <option value="AB+">AB+</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="input-group">
+          <label for="childWeightInput">Peso actual (kg)</label>
+          <input id="childWeightInput" type="number" step="0.1" class="input-control" value="12.4" />
+        </div>
+        <div class="input-group">
+          <label for="childHeightInput">Talla actual (cm)</label>
+          <input id="childHeightInput" type="number" step="0.5" class="input-control" value="87.5" />
+        </div>
+      </div>
+      <div class="input-group" style="margin-bottom: 14px;">
+        <label for="childAllergiesInput">Alergias medicamentosas / alimentarias</label>
+        <input id="childAllergiesInput" type="text" class="input-control" placeholder="Ej. Ninguna o Penicilina" value="Ninguna" />
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button id="cancelChildModalBtn" class="btn btn-outline" type="button">Cancelar</button>
+        <button id="saveChildModalBtn" class="btn btn-safe" type="button">Guardar Perfil</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastEl" class="toast-msg hidden"></div>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>

@@ -1,145 +1,123 @@
-# PequeSalud: Arquitectura de Doble Escritorio (Modo Padres y Estación Clínica del Pediatra)
+# PequeSalud — Arquitectura Mixta (Android Nativa + PWA Instalable para GitHub Pages)
 
-Rediseño integral de **PequeSalud** que divide la aplicación en dos entornos especializados pero conectados en tiempo real: un **Escritorio de Padres** cálido, guiado y libre de tecnicismos para el cuidado en casa, y una **Estación Clínica del Pediatra** protegida por **PIN médico** que incorpora las herramientas reales de la práctica pediátrica (calculadora de dosis ponderal `mg/kg → mL`, signos vitales por edad, historia perinatal/APGAR, neurodesarrollo, exploración física cefalocaudal, certificados/interconsultas y triaje de reportes de casa).
+Este plan define la evolución de **PequeSalud** hacia una **arquitectura mixta multiplataforma**: conservando toda la potencia de la aplicación Android nativa e incorporando una **Progressive Web App (PWA) completa, instalable y lista para desplegarse directamente en GitHub Pages**, además de un centro de control y previsualización híbrida integrado dentro de la propia aplicación Android. Ambas plataformas comparten la misma base de datos en tiempo real de Firebase Firestore y cuentan con persistencia local offline.
 
 ---
 
-## Revisión del Usuario y Decisiones Confirmadas
+## Revisión del Usuario y Decisiones Críticas
 
-> [!IMPORTANT]
-> Se ha ampliado significativamente el **Escritorio del Pediatra** para que no sea solo un visor de registros, sino una **estación clínica pediátrica completa** con herramientas de cálculo, evaluación neonatal/psicomotora y documentación médica formal.
-
-- **Decisión 1 — Acceso y Seguridad por PIN Médico**:
-  - La app inicia en el **Escritorio de Padres** y permite cambiar al **Escritorio del Pediatra** mediante un **PIN médico de 4 dígitos** (configurable por el especialista, predeterminado `1234`) más el perfil profesional del médico (**Nombre del Pediatra, Cédula / Exequátur, Subespecialidad y Teléfono de Consultorio**) que firma automáticamente recetas y certificados.
-- **Decisión 2 — Nuevos Módulos Clínicos Agregados al Escritorio del Pediatra**:
-  1. **Calculadora Farmacológica Ponderal (`mg/kg` a `mL` / `gotas`) Integrada al Recetario**:
-     - Toma automáticamente el **peso actual en kg** del paciente.
-     - Incluye catálogo de fármacos pediátricos frecuentes (Paracetamol, Ibuprofeno, Amoxicilina, Amoxicilina/Ácido Clavulánico, Azitromicina, Cetirizina, Prednisolona, Salbutamol, Suero Oral) con sus presentaciones comerciales (`100 mg/5 mL`, `120 mg/5 mL`, `250 mg/5 mL`, `400 mg/5 mL`, gotas `100 mg/mL`).
-     - Calcula al instante los **mg por dosis**, la **conversión exacta en mL o gotas** cada 6, 8, 12 o 24 horas y permite insertarla con un toque en la **Receta Digital** que ven los padres en lenguaje claro.
-  2. **Signos Vitales Pediátricos con Semáforo por Grupo Etario**:
-     - Registro de **Frecuencia Cardíaca (FC lpm)**, **Frecuencia Respiratoria (FR rpm)**, **Temperatura (°C)**, **Saturación de O₂ (SpO₂ %)** y **Tensión Arterial (TA mmHg)** con validación automática según la edad del niño (alertando taquicardia, taquipnea, fiebre o desaturación).
-  3. **Historia Perinatal, Neonatal y Tamizajes Ampliados**:
-     - Ficha neonatal dedicada: **Semanas de Gestación (SDG)**, vía de nacimiento (Parto eutócico / Cesárea), **Peso, Talla y Perímetro Cefálico al nacer**, **APGAR (1 min / 5 min)**, **Silverman-Anderson**, requerimiento de UCIN/fototerapia y **5 Tamizajes** (Metabólico ampliado, Auditivo, Cardiológico crítico, Visual/Reflejo rojo y Cadera/Ortolani-Barlow).
-  4. **Evaluación del Neurodesarrollo Psicomotor (Hitos por Edad y Banderas Rojas)**:
-     - Evaluación estructurada en 4 áreas (**Motor Grueso, Motor Fino, Lenguaje y Social/Adaptativo**) con lista de hitos esperados para la edad y detección de signos de alarma neurológicos.
-  5. **Exploración Física Pediátrica por Aparatos y Sistemas + Nota SOAP**:
-     - Plantilla clínica rápida por sistemas (*Aspecto general/hidratación, Fontanelas y Cráneo, Otoscopia/Orofaringe, Cardiopulmonar, Abdomen, Genitourinario/Tanner, Piel y Neurológico*), diagnóstico **CIE-10** sugerido y plan de manejo.
-  6. **Generador de Certificados Médicos, Constancias e Interconsultas**:
-     - Emisión de **Certificado de Salud Escolar / Deportivo**, **Constancia de Vacunación al Día** y **Hoja de Referencia a Subespecialista Pediátrico** (Cardiología, Neurología, Neumología, Gastropediatría, Ortopedia, Alergología), listos para compartir o imprimir y visibles para los padres en su sección de Documentos.
-  7. **Triaje de Pre-Consulta (Alertas Domiciliarias de los Padres)**:
-     - Panel prioritario donde el pediatra ve en tiempo real qué pacientes reportaron fiebre alta o signos de alarma en casa, las gráficas de temperatura de las últimas horas, el diario de tomas/sueño y las **dudas escritas por los padres**, pudiendo responderlas directamente desde su escritorio para que los padres reciban la respuesta del doctor en su pantalla.
+- **Estructura de Arquitectura Mixta Confirmada**: Se mantiene la **aplicación Android nativa** como núcleo móvil y se incorpora un paquete **PWA estático completo listo para GitHub Pages**, junto con un **Centro PWA & GitHub Pages** integrado en la app Android (con vista previa híbrida interactiva, estado de sincronización multiplataforma, guía de publicación en 1 clic y generador de enlace/código de acceso web).
+- **Alcance Funcional Completo en la PWA**: La versión web instalable incluye **ambos escritorios completos** (**Escritorio de Padres** y **Estación Clínica del Pediatra**), replicando fielmente las curvas de crecimiento OMS (Peso, Talla y Perímetro Cefálico con percentiles P3, P15, P50, P85 y P97), el esquema de vacunación, recetas con alerta de alergias, diario del bebé, triaje de urgencias, evolución SOAP y el sistema de notificaciones/recordatorios entre pediatra y familia.
+- **Sincronización Híbrida y Modo Offline**: Ambas aplicaciones (Android y PWA en GitHub Pages) se conectan al **mismo proyecto y colecciones de Firebase Firestore en tiempo real** bajo autenticación de Google, respaldadas por **almacenamiento offline local** (caché de Firestore + persistencia local y Service Worker en la PWA) para operar sin conexión y sincronizar cambios al recuperar red.
 
 ---
 
 ## 1. Visión General y Concepto Central
 
-- **Qué Hace**: Conecta el hogar con el consultorio pediátrico a través de dos interfaces diseñadas a la medida de cada rol:
-  - **Escritorio de Padres**: Cero tecnicismos. Enfocado en *"¿Qué debo darle hoy a mi hijo?"*, *"¿Qué síntomas ha tenido en casa?"*, *"¿Cómo va su diario de comida y sueño?"* y *"¿Qué quiero preguntarle al doctor?"*.
-  - **Escritorio del Pediatra**: Estación médica completa con navegación clínica propia (**Pacientes y Triaje**, **Consulta SOAP + Dosis mg/kg**, **Somatometría + Vacunas**, **Perinatal + Neurodesarrollo**, **Certificados + IA Clínica**).
+**PequeSalud** operará bajo un modelo **Dual Cloud-First & Offline-Ready**:
+
+1. **Ecosistema Unificado Padres–Pediatra en Cualquier Dispositivo**:
+   - Los padres o el pediatra pueden utilizar la app nativa en Android o abrir la PWA desde cualquier navegador (iOS, Android, PC o Mac alojada en GitHub Pages) e instalarla en su pantalla de inicio o escritorio como aplicación independiente (`standalone`).
+2. **Paridad Clínica y Minimalismo Cálido**:
+   - La PWA conserva el diseño editorial pediátrico de alta precisión y baja carga cognitiva: selector superior instantáneo entre **Modo Padres** y **Modo Pediatra**, selector de paciente activo con código de vinculación familiar (`PEQUE-XXX-000`), gráficas vectoriales interactivas de percentiles OMS y calculadora posológica por peso.
+3. **Puente Nativo–Web Integrado en Android**:
+   - Dentro de la app Android se añade una sección dedicada **Arquitectura Mixta & PWA GitHub Pages** que permite:
+     - Ejecutar y probar la PWA en vivo dentro de un contenedor híbrido optimizado.
+     - Verificar el estado del manifiesto web (`Web App Manifest`), el `Service Worker` offline y la conexión en tiempo real con Firebase.
+     - Copiar la configuración y seguir los pasos exactos para activar GitHub Pages desde el repositorio exportado.
 
 ---
 
 ## 2. Experiencia de Usuario y Diseño Visual
 
-### Comparativa de Ambos Escritorios
+### Estética y Sistema de Diseño Compartido
+- **Paleta Clínica Minimalista**:
+  - Superficies cálidas en crema marfil (`#FAF7F2`) y tarjetas blancas puras con bordes sutiles para reducir la fatiga visual en consulta y en casa.
+  - Acentos diferenciados por rol: **Coral Cálido (`#E05A47`)** para el Escritorio de Padres y **Azul Clínico Profundo (`#1E5AA8`)** para la Estación del Pediatra.
+  - Semáforo clínico OMS: Verde Esmeralda (`#2E7D32`) para canal óptimo (P15–P85), Ámbar (`#EF6C00`) para zona de vigilancia (P3–P15 / P85–P97) y Rojo Clínico (`#C62828`) para alerta (<P3 o >P97) y alergias medicamentosas.
+- **Tipografía y Jerarquía**:
+  - Encabezados claros, métricas antropométricas en tipografía monoespaciada/tabular para rápida lectura clínica (peso en `kg`, talla en `cm`, perímetro cefálico en `cm`, IMC y Z-score/percentil estimado).
 
-| Dimensión | Escritorio de Padres (Familiar) | Escritorio del Pediatra (Especialista) |
-| :--- | :--- | :--- |
-| **Navegación Inferior** | `Inicio Casa` · `Síntomas/Diario` · `Mis Recetas y Vacunas` · `Dudas y Estudios` · `Más` | `Pacientes y Triaje` · `Consulta y Dosis` · `Crecimiento y Vacunas` · `Clínica y Perinatal` · `Más / IA` |
-| **Lenguaje e Interfaz** | Sencillo, visual, empático, botones grandes y semáforos ("Al día", "Creciendo sano") | Clínico, preciso, estructurado por sistemas (SOAP, CIE-10, Percentiles OMS, mg/kg/dosis) |
-| **Permisos de Escritura** | Solo registra eventos en casa: fiebre/síntomas, sueño/comida, dudas y fotos de estudios | Control total del expediente: diagnósticos, recetas, vacunas con lote, percentiles, alergias y certificados |
-| **Asistente IA Gemini** | Orientación para padres (cuidados en casa y cuándo acudir a urgencias, sin recetar) | Soporte de decisión clínica (dosis ponderales, diagnósticos diferenciales pediátricos y guías clínicas) |
-
-### Flujo Completo del Pediatra en su Escritorio
-
-1. **Barra Superior Clínica y Buscador de Pacientes**:
-   - Muestra los datos del especialista (ej. *Dr. Alejandro López · Pediatra*) y permite buscar pacientes por nombre o **Código de Vinculación Familiar** (`PEQUE-SOF-842`), o dar de alta un nuevo paciente pediátrico.
-   - Banda de alerta clínica permanente del paciente activo: **Alergias en rojo**, **Grupo sanguíneo**, **Edad cronológica exacta**, **Peso/Talla actual** y **Percentil OMS**.
-2. **Pestaña 1 — Pacientes y Bandeja de Pre-Consulta (Triaje de Casa)**:
-   - Muestra los **Síntomas y Fiebres registrados por los padres** (con alerta si la temperatura ≥ 38.0 °C), el resumen del **Diario del Bebé** (alimentación/sueño), los **Estudios subidos por la familia** y las **Dudas de los Padres** con un botón **"Responder a los padres"** para enviarles una indicación directa antes o durante la consulta.
-3. **Pestaña 2 — Consulta SOAP, Exploración Física y Calculadora Ponderal (`mg/kg`)**:
-   - **Signos Vitales Pediátricos**: FC, FR, Temp, SpO₂ y TA con evaluación automática según edad.
-   - **Exploración Física por Sistemas**: Checklists rápidos (Otoscopia, Orofaringe, Cardiopulmonar, Abdomen, Fontanelas, Piel) + Nota Subjetiva/Objetiva y Diagnóstico CIE-10.
-   - **Calculadora de Dosis Pediátrica y Recetario**: Selecciona el medicamento, ajusta `mg/kg/día` o `mg/kg/dosis`, elige la concentración del jarabe/suspensión (`mg/5 mL`) y genera automáticamente la indicación exacta en `mL` cada `X` horas por `Y` días, enviándola directo al recetario de los padres.
-4. **Pestaña 3 — Somatometría OMS (Percentiles) y Vacunación Oficial**:
-   - **Calculadora Antropométrica**: Peso (kg), Talla (cm), Perímetro Cefálico (cm), cálculo automático de **IMC** y **Percentil OMS estimado** (`P3`, `P15`, `P50`, `P85`, `P97`) con curva evolutiva.
-   - **Esquema Oficial de Vacunación**: Registro exclusivo del médico con nombre del biológico, dosis (1ª, 2ª, Refuerzo), **número de lote**, centro/consultorio de aplicación y programación de la próxima dosis.
-5. **Pestaña 4 — Historia Perinatal, Neurodesarrollo, Laboratorios y Certificados**:
-   - **Ficha Perinatal y Tamizajes**: SDG, APGAR, peso/talla al nacer y estado de los 5 tamizajes neonatales.
-   - **Hitos del Neurodesarrollo**: Evaluación psicomotora por edad (Motor grueso/fino, lenguaje, social).
-   - **Órdenes de Laboratorio, Certificados e Interconsultas**: Solicitud de biometría/uroanálisis/perfil viral, emisión de **Certificado Médico Escolar** o **Referencia a Subespecialista** firmada por el pediatra.
+### Flujo de Navegación en la PWA y App Nativa
+1. **Cabecera Adaptativa Multiplataforma**:
+   - Conmutador instantáneo **Escritorio de Padres / Estación del Pediatra**, selector de hijo/paciente activo, indicador de estado **Online (Firebase Realtime) / Offline (Local Cache)** y botón **"Instalar App (PWA)"** cuando se ejecuta en navegador.
+2. **Escritorio de Padres (Web + Android)**:
+   - Resumen de salud del niño, tarjeta de urgencias y alergias, gráfica simplificada de crecimiento OMS con explicación amigable, bandeja de notificaciones y recordatorios enviados por el pediatra, bitácora de síntomas en casa con semáforo de triaje, diario de lactancia/sueño, dudas para la próxima consulta y carnet de vacunas interactivo.
+3. **Estación Clínica del Pediatra (Web + Android)**:
+   - Ficha clínica integral, trazado vectorial interactivo de **Curvas OMS (Peso, Talla y Perímetro Cefálico)** con ajuste automático por sexo y rango etario (`0–24 meses`, `2–5 años`, `5–19 años`), evolución clínica estructurada SOAP, prescripción con calculadora mg/kg/dosis y detector automático de alergias cruzadas, hito de neurodesarrollo, certificados pediátricos imprimibles y emisor de alertas/recordatorios push para los padres.
+4. **Hub PWA & GitHub Pages (en Android)**:
+   - Panel interactivo accesible desde el menú principal y cabecera que muestra la arquitectura híbrida activa, permite abrir el **Visor PWA Integrado** y detalla la publicación directa en GitHub Pages.
 
 ---
 
-## 3. Decisiones de Producto y Balance Técnico
+## 3. Decisiones Clave de Producto y Compensaciones
 
-- **Decisión 1: Calculadora de Dosis Ponderal Integrada al Expediente**
-  - *Enfoque Elegido*: La calculadora lee automáticamente el campo `weightKg` del niño seleccionado y convierte la dosis ponderal en mililitros exactos listos para guardarse como prescripción activa.
-  - *Por qué*: En pediatría no existen dosis estándar fijas; calcular `mg/kg` y transformarlo a `mL` para que los padres lean *"Dar 4.5 mL cada 8 horas por 5 días"* ahorra tiempo al médico y evita errores de dosificación en casa.
-- **Decisión 2: Respuesta Directa del Pediatra a las Dudas y Síntomas de Casa**
-  - *Enfoque Elegido*: Cada duda o síntoma reportado por los padres puede ser marcado como *"Revisado en consulta"* o recibir una *"Nota/Respuesta del Pediatra"* que se refleja en la pantalla de los padres.
-  - *Por qué*: Cierra el ciclo de comunicación clínica entre el hogar y el consultorio.
+- **PWA Sin Paso de Compilación Complejo para GitHub Pages**:
+  - *Decisión*: Construir el motor de la PWA utilizando estándares web modernos nativos (ES Modules, SDK modular de Firebase vía CDN oficial, renderizado reactivo ligero y gráficos SVG/D3 para las curvas OMS) junto con `.nojekyll`, `manifest.webmanifest` y `sw.js`.
+  - *Ventaja*: Al subir o sincronizar el proyecto con GitHub, GitHub Pages sirve la PWA de forma inmediata sin depender de pipelines externos que puedan fallar, y permite además empaquetar exactamente el mismo motor dentro de la app Android para su ejecución híbrida local.
+- **Sincronización Dual (Firebase + Respaldo Local Instantáneo)**:
+  - *Decisión*: Utilizar las mismas rutas de Firestore (`/users/{userId}/children/{childId}` y `/users/{userId}/records/{recordId}`) con persistencia offline habilitada tanto en el SDK nativo de Android como en el cliente web de la PWA, complementado con almacenamiento local (`IndexedDB` / `localStorage`) para modo demostración o uso sin red.
+  - *Ventaja*: Cualquier vacuna, medición antropométrica, nota SOAP o recordatorio médico creado en la PWA aparece en tiempo real en la app Android y viceversa, sin perder datos si se corta la conexión.
+- **Rutas Relativas en el Manifiesto y Service Worker**:
+  - *Decisión*: Configurar todas las rutas del `manifest.webmanifest` y del `Service Worker` de forma relativa (`./`).
+  - *Ventaja*: Garantiza que la PWA funcione e instale correctamente tanto en un dominio raíz como en subrutas de GitHub Pages (`https://<usuario>.github.io/<repositorio>/`).
 
 ---
 
 ## 4. Arquitectura Técnica y Estrategia de Datos
 
-### Diagrama de Arquitectura de Doble Escritorio
+### Diagrama de Arquitectura Mixta (Android + PWA GitHub Pages + Firebase)
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                         MainActivity & MyApplicationTheme                        │
-│              (Modo Claro / Oscuro + Auth Gate Google + PIN Médico)               │
-└────────────────────────────────────────┬─────────────────────────────────────────┘
-                                         │
-                           ┌─────────────▼─────────────┐
-                           │   Conmutador de Entorno   │
-                           │ (Padres <──PIN──> Médico) │
-                           └──────┬─────────────┬──────┘
-                                  │             │
-     ┌────────────────────────────▼──┐       ┌──▼──────────────────────────────────┐
-     │     ESCRITORIO DE PADRES      │       │  ESTACIÓN CLÍNICA DEL PEDIATRA      │
-     │   (Hogar · Lenguaje Simple)   │       │  (Consultorio · Uso Exclusivo)      │
-     ├───────────────────────────────┤       ├─────────────────────────────────────┤
-     │ 1. Inicio Familiar:           │       │ 1. Buscador de Pacientes, Código    │
-     │    • Indicaciones activas     │       │    Familiar y Bandeja de Triaje     │
-     │      del pediatra y citas     │       │    (Fiebres, Dudas y Estudios Casa) │
-     │ 2. Registro en Casa:          │       │ 2. Consulta SOAP y Signos Vitales:  │
-     │    • Termómetro y Síntomas    │       │    • FC, FR, Temp, SpO2 por edad    │
-     │    • Diario Sueño y Comida    │       │    • Exploración física por sistemas│
-     │ 3. Dudas y Estudios:          │       │    • Calculadora Ponderal mg/kg→mL  │
-     │    • Preguntas para consulta  │       │      y Emisión de Receta Digital    │
-     │      y respuestas del doctor  │       │ 3. Somatometría OMS y Vacunación:   │
-     │    • Subir foto / estudio     │       │    • Peso, Talla, PC, IMC, Percentil│
-     │ 4. Mis Recetas, Vacunas y     │       │    • Aplicar Vacuna Oficial + Lote  │
-     │    Certificados (Solo Lectura)│       │ 4. Perinatal, Neurodesarrollo,      │
-     │ 5. Orientación IA para Padres │       │    Laboratorios, Certificados e IA  │
-     └───────────────┬───────────────┘       └──────────────────┬──────────────────┘
-                     │                                          │
-                     └────────────────────┬─────────────────────┘
-                                          │
-                            ┌─────────────▼─────────────┐
-                            │   PequeSaludRepository    │
-                            │   (Firestore + Gemini AI) │
-                            └───────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                   ECOSISTEMA MIXTO PEQUESALUD                           │
+├───────────────────────────────────┬─────────────────────────────────────┤
+│       APP ANDROID NATIVA          │     PWA INSTALABLE (GITHUB PAGES)   │
+│  ┌─────────────────────────────┐  │  ┌───────────────────────────────┐  │
+│  │ Jetpack Compose UI (M3)     │  │  │ Interfaz Web Adaptativa (PWA) │  │
+│  │ • Escritorio de Padres      │  │  │ • Escritorio de Padres        │  │
+│  │ • Estación del Pediatra     │  │  │ • Estación del Pediatra       │  │
+│  │ • Gráficas OMS + Alertas    │  │  │ • Gráficas OMS SVG/D3 + Push  │  │
+│  └──────────────┬──────────────┘  │  └───────────────┬───────────────┘  │
+│                 │                 │                  │                  │
+│  ┌──────────────▼──────────────┐  │  ┌───────────────▼───────────────┐  │
+│  │ Hub Híbrido PWA Integrado   │◄─┼─►│ Service Worker (sw.js)        │  │
+│  │ • Visor WebView PWA Local   │  │  │ • Caché Offline App Shell     │  │
+│  │ • Diagnóstico GitHub Pages  │  │  │ • Web App Manifest Instalable │  │
+│  └──────────────┬──────────────┘  │  └───────────────┬───────────────┘  │
+└─────────────────┼─────────────────┴──────────────────┼──────────────────┘
+                  │                                    │
+                  ▼                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│            CAPA DE SINCRONIZACIÓN Y PERSISTENCIA COMPARTIDA             │
+│  • Autenticación Google (Credential Manager en Android / Auth en Web)   │
+│  • Firebase Firestore en Tiempo Real (/users/{uid}/children y /records) │
+│  • Caché Offline Multiplataforma (Firestore Offline + Local Storage)    │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Modelo de Datos y Sincronización Bidireccional
+### Modelo de Datos y Estructura de Estado Compartida
 
-1. **Perfil Ampliado del Paciente (`ChildProfile`)**:
-   - Incluye código de vinculación familiar derivado, datos antropométricos actuales (`weightKg`, `heightCm`) y resumen del último control pediátrico.
-2. **Categorías de Registros en `HealthRecord` (diferenciadas por rol)**:
-   - **Origen Padres**:
-     - `SINTOMA_CASA`: Fiebre (°C), síntomas en casa y evolución.
-     - `DIARIO_BEBE`: Tomas de leche/comida, horas de sueño, pañales y estado general.
-     - `DUDA_PADRE`: Pregunta de los padres + respuesta del pediatra en el campo de notas/estado.
-     - `ESTUDIO_PADRE`: Estudio o fotografía clínica subida por los padres.
-   - **Origen Exclusivo Pediatra**:
-     - `CONSULTA`: Signos vitales (FC, FR, Temp, SpO₂), exploración física por sistemas, diagnóstico CIE-10 y plan.
-     - `MEDICAMENTO`: Prescripción calculada por peso (`mg/kg` → `mL`, frecuencia y días) visible en formato amigable para los padres.
-     - `VACUNA`: Biológico oficial, número de lote, centro de aplicación y estado (*Aplicada* / *Pendiente*).
-     - `CRECIMIENTO`: Peso, talla, perímetro cefálico, IMC y percentil OMS.
-     - `PERINATAL`: SDG, APGAR, peso/talla al nacer y los 5 tamizajes neonatales.
-     - `NEURODESARROLLO`: Evaluación de hitos motores, de lenguaje y sociales por edad.
-     - `CERTIFICADO`: Certificados médicos escolares, constancias de vacunación e interconsultas firmadas con la cédula/exequátur del pediatra.
-     - `HISTORIAL`, `LABORATORIO`, `HOSPITALIZACION`, `NUTRICION`, `CALENDARIO`: Antecedentes patológicos, órdenes de laboratorio, urgencias, plan nutricional y programación de citas.
+Ambas plataformas leen y escriben exactamente las mismas entidades validadas por las reglas de seguridad de Firestore:
+
+- **Perfil Pediátrico (`ChildProfile`)**:
+  - Identificación: `id`, `userId`, `name`, `ageYears`, `birthDate`, `gender` (`Femenino` | `Masculino`), `avatarColorHex`.
+  - Datos clínicos críticos: `bloodType`, `allergies`, `pediatrician`, `emergencyContact`, `weightKg`, `heightCm`, `lastCheckupDate`, `lastCheckupSummary`.
+  - Código de enlace familiar determinista: `PEQUE-<PREFIJO>-<CODIGO>` para vinculación rápida entre consulta y hogar.
+- **Registro Clínico y Familiar (`HealthRecord`)**:
+  - Identificación y vínculo: `id`, `userId`, `childId`, `childName`.
+  - Categorías soportadas en ambos escritorios:
+    - Clínicas y compartidas: `VACUNA`, `CRECIMIENTO`, `MEDICAMENTO`, `CONSULTA`, `LABORATORIO`, `NUTRICION`, `HISTORIAL`, `CALENDARIO`, `DOCUMENTO`, `HOSPITALIZACION`.
+    - Exclusivas o iniciadas en Escritorio de Padres: `SINTOMA_CASA`, `DIARIO_BEBE`, `DUDA_PADRE`, `ESTUDIO_PADRE`.
+    - Exclusivas o iniciadas en Estación del Pediatra: `PERINATAL`, `NEURODESARROLLO`, `CERTIFICADO`, más recordatorios/alertas con prefijo de notificación médica para disparar avisos locales y banners en el Escritorio de Padres.
+
+### Mapeo de Estado de Componentes Interactivos
+
+| Componente / Módulo | Estado Gestionado | Comportamiento en Android y PWA |
+| :--- | :--- | :--- |
+| **Conmutador de Escritorio** | `workspaceMode` (`PARENT` / `PEDIATRICIAN`) | Cambia instantáneamente la paleta, las pestañas de navegación y las herramientas clínicas o familiares sin perder el paciente seleccionado. |
+| **Motor de Curvas OMS** | `selectedMetric` (`WEIGHT`, `HEIGHT`, `HEAD`), `ageRange` automático, `childGender` | Calcula y dibuja las 5 curvas estándar de la OMS (P3, P15, P50, P85, P97) con bandas de alerta coloreadas y superpone la evolución histórica del paciente; muestra vista analítica completa para el pediatra y vista guiada para padres. |
+| **Sistema de Alertas y Recordatorios** | `pendingAlerts`, `notificationPermission`, `unreadReminders` | Permite al pediatra emitir recordatorios de citas, vacunas o indicaciones urgentes; dispara notificaciones del sistema (Android NotificationManager / Web Notifications API) y alertas destacadas en el inicio de Padres. |
+| **Prescripción Segura y Posología** | `drugName`, `doseMgKg`, `weightKg`, `allergyMatch` | Calcula automáticamente los miligramos y mililitros por toma según el peso actual del niño y bloquea/alerta visualmente si detecta alergia registrada (ej. Penicilina/Betalactámicos o AINEs). |
+| **Gestor Offline & PWA Installer** | `networkStatus`, `installPromptEvent`, `syncQueue` | Intercepta el evento `beforeinstallprompt` en navegadores para instalar la PWA en 1 clic, mantiene la interfaz 100% operativa sin internet mediante el `Service Worker` y sincroniza los registros con Firestore al reconectar. |
+| **Hub Híbrido PWA (Android)** | `pwaPreviewActive`, `deploymentChecklist` | Permite ejecutar la versión PWA dentro de la app Android, probar la sincronización cruzada y consultar la configuración lista para publicar en GitHub Pages. |

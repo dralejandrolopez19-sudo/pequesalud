@@ -1,6 +1,6 @@
 {
-  "summary":  "Plan de implementación ampliado para PequeSalud con Estación Clínica Pediátrica Completa: incluye Calculadora de Dosis Ponderal (mg/kg a mL/gotas), Signos Vitales con rangos por edad, Historia Perinatal/Neonatal (APGAR, SDG, Tamizajes), Evaluación del Neurodesarrollo por hitos, Exploración Física por aparatos y sistemas, Generador de Certificados/Interconsultas con Cédula/Exequátur del Pediatra, y Triaje de Alertas Domiciliarias enviadas por los padres.",
-  "updatedAt":  "2026-10-23T14:31:50.632857013Z",
+  "summary":  "Plan de implementación para la Arquitectura Mixta (App Android Nativa + PWA instalable lista para GitHub Pages) de PequeSalud, incluyendo ambos escritorios completos (Padres y Pediatra), curvas de crecimiento OMS interactivas, alertas push y sincronización en tiempo real con Firebase Firestore más modo offline local.",
+  "updatedAt":  "2026-10-25T19:29:41.210902991Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

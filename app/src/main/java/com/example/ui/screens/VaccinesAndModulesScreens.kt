@@ -63,6 +63,7 @@ import com.example.data.ChildProfile
 import com.example.data.ClinicalModule
 import com.example.data.HealthRecord
 import com.example.ui.components.ChildAvatar
+import com.example.ui.components.WhoGrowthChartCard
 import com.example.ui.theme.AlertRed
 import com.example.ui.theme.AppliedGreenBadge
 import com.example.ui.theme.CardVacunasBg
@@ -542,7 +543,11 @@ fun ClinicalModuleScreen(
 
             if (module == ClinicalModule.CRECIMIENTO && activeChild != null) {
                 item {
-                    GrowthSummaryCard(child = activeChild)
+                    WhoGrowthChartCard(
+                        activeChild = activeChild,
+                        records = records,
+                        isPediatricianMode = true
+                    )
                 }
             }
 

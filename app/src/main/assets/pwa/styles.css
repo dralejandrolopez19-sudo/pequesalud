@@ -1,0 +1,545 @@
+:root {
+  --bg-cream: #FAF7F2;
+  --bg-card: #FFFFFF;
+  --bg-subtle: #F2ECE4;
+  --text-primary: #1E242B;
+  --text-secondary: #5A6572;
+  --border-color: #E5DEC9;
+  --accent-parent: #E05A47;
+  --accent-parent-soft: #FCECE9;
+  --accent-pediatrician: #1E5AA8;
+  --accent-pediatrician-soft: #E8F0FE;
+  --safe-green: #15803D;
+  --safe-green-soft: #DCFCE7;
+  --warn-amber: #D97706;
+  --warn-amber-soft: #FEF3C7;
+  --alert-red: #DC2626;
+  --alert-red-soft: #FEE2E2;
+  --purple-ai: #6D28D9;
+  --purple-ai-soft: #F3E8FF;
+  --shadow-sm: 0 2px 8px rgba(30, 36, 43, 0.05);
+  --shadow-md: 0 8px 24px rgba(30, 36, 43, 0.08);
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-pill: 999px;
+}
+
+body.dark-theme {
+  --bg-cream: #0F172A;
+  --bg-card: #1E293B;
+  --bg-subtle: #334155;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --border-color: #334155;
+  --accent-parent-soft: rgba(224, 90, 71, 0.18);
+  --accent-pediatrician-soft: rgba(59, 130, 246, 0.2);
+  --safe-green-soft: rgba(21, 128, 61, 0.22);
+  --warn-amber-soft: rgba(217, 119, 6, 0.22);
+  --alert-red-soft: rgba(220, 38, 38, 0.22);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-cream);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 88px;
+}
+
+.top-arch-banner {
+  background: linear-gradient(90deg, #1E5AA8 0%, #15803D 100%);
+  color: #FFFFFF;
+  padding: 8px 16px;
+  font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.arch-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.arch-pill {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ADE80;
+  display: inline-block;
+}
+
+.status-dot.offline {
+  background: #FBBF24;
+}
+
+.app-shell {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.app-header {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+
+.workspace-tag {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  display: inline-block;
+  margin-bottom: 2px;
+}
+
+.workspace-tag.parent {
+  background: var(--safe-green-soft);
+  color: var(--safe-green);
+}
+
+.workspace-tag.pediatrician {
+  background: var(--accent-pediatrician-soft);
+  color: var(--accent-pediatrician);
+}
+
+.brand-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.brand-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 9px 16px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: transform 0.12s ease, opacity 0.15s ease;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn-primary-parent {
+  background: var(--accent-parent);
+  color: #FFFFFF;
+}
+
+.btn-primary-pediatrician {
+  background: var(--accent-pediatrician);
+  color: #FFFFFF;
+}
+
+.btn-safe {
+  background: var(--safe-green);
+  color: #FFFFFF;
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1.5px solid var(--border-color);
+}
+
+.btn-soft-blue {
+  background: var(--accent-pediatrician-soft);
+  color: var(--accent-pediatrician);
+  border: 1px solid rgba(30, 90, 168, 0.3);
+}
+
+.btn-soft-green {
+  background: var(--safe-green-soft);
+  color: var(--safe-green);
+  border: 1px solid rgba(21, 128, 61, 0.3);
+}
+
+.btn-danger {
+  background: var(--alert-red-soft);
+  color: var(--alert-red);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.child-strip-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.child-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.child-chip {
+  border: 1.5px solid var(--border-color);
+  background: var(--bg-cream);
+  color: var(--text-primary);
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.child-chip.active {
+  background: var(--accent-pediatrician);
+  color: #FFFFFF;
+  border-color: var(--accent-pediatrician);
+}
+
+.active-child-banner {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.child-telemetry-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.telemetry-badge {
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 10px;
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.telemetry-badge.allergy {
+  background: var(--alert-red-soft);
+  color: var(--alert-red);
+}
+
+.telemetry-badge.code {
+  background: var(--accent-pediatrician-soft);
+  color: var(--accent-pediatrician);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 16px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.card-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.card-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.who-chart-wrapper {
+  background: var(--bg-cream);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin-top: 10px;
+}
+
+.who-svg {
+  width: 100%;
+  height: auto;
+  max-height: 340px;
+  display: block;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-swatch {
+  width: 12px;
+  height: 4px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.input-group label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.input-control {
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border-color);
+  background: var(--bg-cream);
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  font-family: inherit;
+}
+
+textarea.input-control {
+  resize: vertical;
+  min-height: 68px;
+}
+
+.record-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.record-item {
+  background: var(--bg-cream);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.record-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.record-badge.applied {
+  background: var(--safe-green-soft);
+  color: var(--safe-green);
+}
+
+.record-badge.pending {
+  background: var(--warn-amber-soft);
+  color: var(--warn-amber);
+}
+
+.record-badge.urgent {
+  background: var(--alert-red-soft);
+  color: var(--alert-red);
+}
+
+.push-banner-card {
+  background: linear-gradient(135deg, var(--accent-pediatrician-soft) 0%, var(--safe-green-soft) 100%);
+  border: 1.5px solid var(--accent-pediatrician);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-around;
+  padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+  z-index: 90;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.05);
+}
+
+.nav-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.73rem;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 12px;
+}
+
+.nav-tab.active.parent-mode {
+  color: var(--safe-green);
+  background: var(--safe-green-soft);
+}
+
+.nav-tab.active.pediatrician-mode {
+  color: var(--accent-pediatrician);
+  background: var(--accent-pediatrician-soft);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 200;
+}
+
+.modal-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  max-width: 480px;
+  width: 100%;
+  padding: 22px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.toast-msg {
+  position: fixed;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1E242B;
+  color: #FFFFFF;
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  font-size: 0.84rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-md);
+  z-index: 250;
+}
